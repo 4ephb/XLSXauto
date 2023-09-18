@@ -108,42 +108,44 @@
     <!-- JavaScript для автоматической отправки формы -->
     <script>
         $(document).ready(function () {
+            let $contentEditableCells = $('td[contenteditable]');
+
             $('#fileInput').change(function () {
                 // Симулируем нажатие на кнопку "Загрузить" при выборе файла
                 $('input[type="submit"]').click();
             });
-        });
-    </script>
-    <!-- JavaScript для редактирования данных -->
-    <script>
-        $(document).ready(function () {
+
             // При клике на ячейку начинаем редактирование
-            $('td[contenteditable]').on('click', function () {
-                $(this).attr('data-old-value', $(this).text());
+            $contentEditableCells.on('click', function () {
+                $(this).data('oldValue', $(this).text());
             });
 
             // При нажатии на Enter заканчиваем редактирование и сохраняем данные в DataFrame
-            $('td[contenteditable]').on('keypress', function (e) {
+            $contentEditableCells.on('keypress', function (e) {
                 if (e.which === 13) {
                     $(this).blur();
                 }
             }).on('blur', function () {
-                var newValue = $(this).text();
-                if (newValue !== $(this).attr('data-old-value')) {
-                    {#var columnIndex = $(this).index();#}
-                    {#var rowIndex = $(this).closest('tr').index() - 1;#}
-                    var cellId = $(this).attr('data-id');
-                    $(this).attr('data-old-value', newValue);
-                    {#$('#data-table').find('tr:eq(' + (rowIndex + 2) + ')').find('td:eq(' + columnIndex + ')').text(newValue);#}
+                let newValue = $(this).text();
+                if (newValue !== $(this).data('oldValue')) {
+                    // var columnIndex = $(this).index();
+                    // var rowIndex = $(this).closest('tr').index() - 1;
+                    let cellId = $(this).data('data-id');
+                    $(this).data('oldValue', newValue);
+                    let data = $('#data-table tbody').html();
+                    // $('#data-table').find('tr:eq(' + (rowIndex + 2) + ')').find('td:eq(' + columnIndex + ')').text(newValue);
+
                     // Отправляем обновленные данные на сервер
-                    {#var data = $('#data-table tbody').html();#}
                     $.ajax({
                         type: "POST",
                         url: "/update",
                         dataType: 'json',
                         contentType: 'application/json;charset=UTF-8',
-                        {#data: JSON.stringify({data: data}),#}
-                        data: JSON.stringify({id: cellId, value: newValue}),
+                        data: JSON.stringify({data: data}),
+                       // data: JSON.stringify({
+                        //    id: cellId,
+                        //    value: newValue,
+                        //    data: data}),
                         success: function (result) {
                             console.log(result);
                         }
