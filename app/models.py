@@ -2,6 +2,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from . import db, lm
 
+class TNVD(db.Model):
+    __tablename__ = 'tnvd_names'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64))
+    number = db.Column(db.Integer)
+
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
