@@ -1,2 +1,4 @@
 # XLSXauto
-___
+
+#### run:
+flask --app src/main run
