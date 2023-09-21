@@ -10,8 +10,9 @@ from flask import Flask, render_template, redirect, request, url_for
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, Float
-from flask_login import UserMixin, LoginManager, current_user, login_required
+from flask_login import UserMixin, LoginManager, current_user, login_required, login_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from forms import LoginForm
 
 
 ##########################################
@@ -103,13 +104,27 @@ def edit():
         return redirect(url_for('edit'))
 
 
+@app.route('/reg', methods=['GET'])
+def reg():
+    if request.method == 'GET':
+        if User.query.filter_by(name='oleg').first() is None:
+            User.register('oleg', '1234')
+        return redirect(url_for('home'))
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'GET':
         return render_template('login.html')
     else:
-        save_xlsx_file()
-        return redirect(url_for('home'))
+        form = LoginForm()
+        # if form.validate_on_submit():
+        #     user = User.query.filter_by(name=form.name.data).first()
+        #     if user is None or not user.verify_password(form.password.data):
+        #         return redirect(url_for('main.login', **request.args))
+        #     login_user(user, form.remember_me.data)
+        #     return redirect(request.args.get('next') or url_for('glyph.list'))
+        # return render_template('login.html', form=form)
 
 
 @app.route("/logout")
@@ -122,6 +137,11 @@ def logout():
 @app.errorhandler(404)
 def page_not_found(error):
     return render_template("404.html")
+
+
+@app.errorhandler(401)
+def page_not_found(error):
+    return render_template("401.html")
 
 
 @app.errorhandler(500)
