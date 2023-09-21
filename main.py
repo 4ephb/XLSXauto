@@ -105,13 +105,18 @@ def edit():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    return render_template("login.html")
+    if request.method == 'GET':
+        return render_template('login.html')
+    else:
+        save_xlsx_file()
+        return redirect(url_for('home'))
 
 
-# @app.route("/logout")
-# def logout():
-#     # Логика выхода из системы
-#     return redirect(url_for('login'))
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 
 @app.errorhandler(404)
