@@ -6,14 +6,17 @@
 
 
 import os
+
+import flask_wtf
 from flask import Flask, render_template, redirect, request, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_bootstrap import Bootstrap
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, Float
-from flask_login import UserMixin, LoginManager, current_user, login_required, login_user, logout_user
+from flask_login import UserMixin, LoginManager, FlaskLoginClient, current_user, login_required, login_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import forms
+from flask_wtf import FlaskForm
 from utils import secret_key
 
 
@@ -167,14 +170,19 @@ def login():
     # return render_template('login.html')
 
     form = forms.LoginForm()
-    if form.validate_on_submit():
-        user = User.query.filter_by(name=form.name.data).first()
-        if user is None or not user.verify_password(form.password.data):
-            return redirect(url_for('login', **request.args))
-        login_user(user, form.remember_me.data)
-        session['name'] = request.form['name']
-        return redirect(request.args.get('next') or url_for('home'))
-    return render_template('login.html', form=form)
+
+    if request.method == 'GET':
+        return render_template('login_2.html', form=form)
+    else:
+        if form.validate_on_submit():
+            user = User.query.filter_by(name=form.name.data).first()
+            if user is None or not user.verify_password(form.password.data):
+                # return redirect(url_for('login', **request.args))
+                return redirect(url_for('login'))
+            # login_user(user, form.remember_me.data)
+            login_user(user, remember=form.remember_me.data)
+            return redirect(request.args.get('next') or url_for('home'))
+        return render_template('login_2.html', form=form)
 
 
 @app.route('/register', methods=['GET', 'POST'])
