@@ -1,1 +1,9 @@
-edit page
+{% extends 'base.html' %}
+
+{% block content %}
+    {% if data.empty %}
+        <p>Data is empty.</p>
+    {% else %}
+        <p>Data is not empty.</p>
+    {% endif %}
+{% endblock %}
