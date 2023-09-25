@@ -4,20 +4,18 @@
 #
 ##########################################
 
-
 import os
-
-import flask_wtf
 from flask import Flask, render_template, redirect, request, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_bootstrap import Bootstrap
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, Float
-from flask_login import UserMixin, LoginManager, FlaskLoginClient, current_user, login_required, login_user, logout_user
+from flask_login import UserMixin, LoginManager, current_user, login_required, login_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import forms
-from flask_wtf import FlaskForm
+# from flask_wtf import FlaskForm
 from utils import secret_key
+import pandas as pd
 
 
 ##########################################
@@ -25,7 +23,16 @@ from utils import secret_key
 ##########################################
 
 
-password = 'thesecret'
+# Имена колонок Result таблицы
+result_columns = [
+    'НАИМЕНОВАНИЕ1', 'НАИМЕНОВАНИЕ2', 'ИЗГОТОВИТЕЛЬ', 'ТМ', 'МАРКА', 'МОДЕЛЬ',
+    'АРТ', 'СПТ', 'КОЛ-ВО', 'КОД', 'НАИМ', 'КОД ТНВД', 'ДОП КОД', 'ВЕС ШТ',
+    'БР', 'НТ', '$/КГ', 'ЦЕНА', 'МЕСТА', 'МЕСТ ЧАСТ', 'ЕСТЬ/НЕТ', 'КОД УП',
+    'ДОП КОД УП', 'КОД №1', 'СЕРТ №1', 'НАЧАЛО №1', 'КОНЕЦ №1', 'КОД №2',
+    'СЕРТ №2', 'НАЧАЛО №2', 'КОНЕЦ №2'
+    ]
+
+data = pd.DataFrame(columns=result_columns)
 
 
 class Base(DeclarativeBase):
@@ -109,7 +116,6 @@ with app.app_context():
     db.create_all()
 
 
-
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -125,7 +131,7 @@ def home():
     if request.method == 'GET':
         names = db.session.execute(db.select(TNVDName).order_by(TNVDName.id)).scalars()
         print(*names)
-        username = session.get('username')
+        # username = session.get('username')
         return render_template('home.html', current_user=current_user)
     else:
         read_xlsx_file()
@@ -137,7 +143,7 @@ def home():
 def edit():
     if request.method == 'GET':
         return render_template('edit.html')
-    else:
+    elif request.method == 'POST':
         save_xlsx_file()
         return redirect(url_for('edit'))
 
@@ -179,7 +185,6 @@ def login():
             if user is None or not user.verify_password(form.password.data):
                 # return redirect(url_for('login', **request.args))
                 return redirect(url_for('login'))
-            # login_user(user, form.remember_me.data)
             login_user(user, remember=form.remember_me.data)
             return redirect(request.args.get('next') or url_for('home'))
         return render_template('login_2.html', form=form)
@@ -234,14 +239,77 @@ def page_not_found(error):
     return render_template("500.html")
 
 
+#######
+# NEW #
+#######
+
+# @app.route('/table')
+# def table():
+#     data = request.args.get('data')
+#     file_path = request.args.get('file_path')
+#     df = pd.read_json(data)
+#     return render_template('table.html', data=df.to_dict('records'), file_path=file_path)
+#
+#
+# @app.route('/update_cell', methods=['POST'])
+# def update_cell():
+#     data = request.get_json()
+#     file_path = data['file_path']
+#     df = pd.read_excel(file_path)
+#     df.at[data['row'], data['column']] = data['value']
+#     save_excel(df, file_path)
+#     return 'success'
+
+
 ##########################################
 # logic:
 ##########################################
 
 
+def clean_1(data):
+    """
+    Функция для очистки данных в столбце НАИМЕНОВАНИЕ2
+    должна возвращать очищенные данные
+    """
+    cleaned_data = data
+    return cleaned_data
+
+
+def clean_2(data):
+    """
+    Функция для очистки данных в столбце ТМ
+    должна возвращать очищенные данные
+    """
+    cleaned_data = data
+    return cleaned_data
+
+
 def read_xlsx_file():
     print('reading xlsx..')
+    if request.method == 'POST':
+        file = request.files['file']
+        column_name = request.form['column_name']
+        if file:
+            file_path = 'uploads/' + file.filename
+            file.save(file_path)
+            df = process_excel(file_path, column_name)
+            return redirect(url_for('table', data=df.to_json(), file_path=file_path))
+    return render_template('home.html')
 
 
 def save_xlsx_file():
     print('saving xlsx..')
+
+
+#######
+# NEW #
+#######
+
+# def process_excel(file_path, column_name):
+#     df = pd.read_excel(file_path)
+#     df[column_name] = df[column_name].apply(clean_1(df))
+#     return df
+#
+#
+# def save_excel(df, file_path):
+#     df.to_excel(file_path, index=False)
