@@ -5,17 +5,18 @@
 ##########################################
 
 import os
-from flask import Flask, render_template, redirect, request, url_for, flash, session, jsonify
+from flask import Flask, render_template, redirect, request, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_bootstrap import Bootstrap
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, Float
+import pandas as pd
 from flask_login import UserMixin, LoginManager, current_user, login_required, login_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import forms
 # from flask_wtf import FlaskForm
 from utils import secret_key
-import pandas as pd
+import openpyxl
 
 
 ##########################################
@@ -149,10 +150,13 @@ def edit():
             if file.filename != '':
                 # Чтение данных из загруженного файла xlsx
                 excel_data = pd.read_excel(file)
+                # excel_data = excel_data.fillna('')
                 # Отображение только необходимых столбцов
                 excel_data = excel_data[['Наименование', 'Торговая Марка', 'Количество, шт.', 'Вес БРУТТО, кг.']]
                 # Переименование столбцов
                 excel_data.columns = ['НАИМЕНОВАНИЕ2', 'ТМ', 'КОЛ-ВО', 'БР']
+                # Фильтруем пустые или все NA записи из excel_data перед конкатенацией
+                excel_data = excel_data.dropna(how='all')  # Удаляем строки, в которых все записи являются NA
                 # Добавление данных в общую таблицу
                 if not excel_data.empty:
                     data = pd.concat([data, excel_data], ignore_index=True)
@@ -166,8 +170,7 @@ def edit():
             data['НАИМЕНОВАНИЕ2'] = data['НАИМЕНОВАНИЕ2'].apply(clean_1)  # тут чистка на наличие латиницы
             data['ТМ'] = data['ТМ'].apply(clean_2)  # тут чистка на наличие кириллицы
 
-            return render_template('edit.html', data=data, columns=result_columns)
-
+            return render_template('edit.html', data=data, columns=data.columns.tolist())
 
 @app.route('/reg', methods=['GET'])
 def reg():
@@ -246,10 +249,15 @@ def page_not_found(error):
 # NEW #
 #######
 
-@app.route('/update', methods=['POST'])
+@app.route('/update', methods=['GET', 'POST'])
 def update():
     global data
-    incoming = request.get_json()['data']
+    json_data = request.get_json()
+    if 'data' in json_data:
+        incoming = json_data['data']
+    else:
+        # Handle the case where 'data' is not provided. Maybe return an error response.
+        return jsonify({'status': 'Error', 'message': 'Missing "data" key in the request'}), 400
     data = update_data(data, incoming)  # Обновляем данные в DataFrame
     return jsonify({'status': 'OK'})
 
@@ -263,8 +271,8 @@ def save():
     """
     global data
     data.to_excel('Result.xlsx', index=False)
-    # data = pd.DataFrame(columns=result_columns)
-    return redirect(url_for('index'))
+    data = pd.DataFrame(columns=result_columns)
+    return redirect(url_for('edit'))
 
 
 ##########################################
