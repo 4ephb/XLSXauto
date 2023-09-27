@@ -5,7 +5,7 @@
 ##########################################
 
 import os
-from flask import Flask, render_template, redirect, request, url_for, flash, jsonify
+from flask import Flask, render_template, redirect, request, url_for, flash, jsonify, json
 from flask_sqlalchemy import SQLAlchemy
 from flask_bootstrap import Bootstrap
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -18,6 +18,7 @@ import forms
 from utils import secret_key
 import openpyxl
 from flask_cors import CORS, cross_origin
+# import json
 
 ##########################################
 # init:
@@ -261,10 +262,10 @@ def page_not_found(error):
 #     return jsonify({'status': 'OK'})
 
 
-@app.route('/update', methods=['GET', 'POST'])
+@app.route('/update', methods=['POST'])
 @cross_origin()
 def update():
-    # global data
+    global table_data
     json_data = request.get_json()
     # if 'data' in json_data:
     #     incoming = json_data['data']
@@ -273,15 +274,15 @@ def update():
     #     return jsonify({'status': 'Error', 'message': 'Missing "data" key in the request'}), 400
     # data = update_data(data, incoming)  # Обновляем данные в DataFrame
     # return jsonify({'status': 'OK'})
-    global data
+    # global data
     if not json_data or 'data' not in json_data:
         return jsonify({'error': 'Missing data'}), 400
     else:
-        table_data = json_data.get('data')
+        # table_data = json_data.get('data')
         print(f'json_data: {json_data}\n')
         print(f'table_data: {table_data}')
-        update_data(data, table_data)
-        print(data)
+        update_data(table_data, json_data.get('data', {}))
+        print(json_data.get('data', {}))
     # data = json_data['data']
     # data = json_data.get('data', {})
 
@@ -315,14 +316,15 @@ def update_data(dataframe, incoming_data):
     :return:
     """
     global table_data
-    updated_dataframe = pd.read_html(incoming_data)[0]
-    print(updated_dataframe)
-    updated_dataframe.columns = [result_columns]
+    result_columns = dataframe.columns  # Получаем названия столбцов исходного DataFrame
+    # updated_dataframe = pd.read_json(incoming_data)
+    updated_dataframe = pd.read_json(json.dumps(incoming_data))
+    updated_dataframe.columns = result_columns  # Задаем названия столбцов согласно исходному DataFrame
+    # updated_dataframe.columns = [result_columns]
     dataframe.update(updated_dataframe)
-    print(dataframe)
     table_data = pd.concat([table_data, updated_dataframe], ignore_index=True, sort=False)
-    print(table_data)
-    return table_data
+    # return jsonify(table_data)
+    return table_data.to_json()  # Преобразуем DataFrame в JSON и возвращаем
 
 
 def clean_1(data):

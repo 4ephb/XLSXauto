@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
     // Получение данных из таблицы и отправка на сервер
-    let tableData = [];
+    const tableData = [];
 
     let table = document.getElementById('ResutTable');
     let rows = table.getElementsByTagName('tr');
@@ -23,13 +23,13 @@ document.addEventListener('DOMContentLoaded', function () {
         },
         body: JSON.stringify({'data': tableData})
     })
-        .then(function (response) {
-            return response.json();
-        })
-        .then(function (data) {
-            console.log(data);
-        })
-        .catch(function (error) {
-            console.error(error);
-        });
+    .then(function (response) {
+        return response.json();
+    })
+    .then(function (data) {
+        console.log(data);
+    })
+    .catch(function (error) {
+        console.error(error);
+    });
 });
