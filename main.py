@@ -17,12 +17,13 @@ import forms
 # from flask_wtf import FlaskForm
 from utils import secret_key
 import openpyxl
-
+from flask_cors import CORS, cross_origin
 
 ##########################################
 # init:
 ##########################################
 
+basedir = os.path.abspath(os.path.dirname(__file__))
 
 # Имена колонок Result таблицы
 result_columns = [
@@ -33,15 +34,17 @@ result_columns = [
     'СЕРТ №2', 'НАЧАЛО №2', 'КОНЕЦ №2'
     ]
 
-data = pd.DataFrame(columns=result_columns)
+table_data = pd.DataFrame(columns=result_columns)
 
 
 class Base(DeclarativeBase):
     pass
 
 
-basedir = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__)
+CORS(app)
+# CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+
 DEBUG = True
 app.secret_key = 'secret'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'db/main.db')
@@ -55,6 +58,7 @@ login_manager = LoginManager()
 bootstrap.init_app(app)
 db.init_app(app)
 login_manager.init_app(app)
+# CORS.init_app(app, resources={r'/edit': {'origins': '*'}})
 secret_key(app)
 
 login_manager.login_view = 'login'
@@ -141,9 +145,9 @@ def home():
 @app.route('/edit', methods=['GET', 'POST'])
 @login_required
 def edit():
-    global data
+    global table_data
     if request.method == 'GET':
-        return render_template('edit.html', data=data)
+        return render_template('edit.html', data=table_data)
     elif request.method == 'POST':
         if 'file' in request.files:
             file = request.files['file']
@@ -159,18 +163,18 @@ def edit():
                 excel_data = excel_data.dropna(how='all')  # Удаляем строки, в которых все записи являются NA
                 # Добавление данных в общую таблицу
                 if not excel_data.empty:
-                    data = pd.concat([data, excel_data], ignore_index=True)
+                    table_data = pd.concat([table_data, excel_data], ignore_index=True)
                     # data = pd.concat([data, excel_data.dropna(how='all')], ignore_index=True)
                     # data = data.append(excel_data, ignore_index=True)
 
             # Замена значений пустых ячеек с NaN на ''
-            data = data.fillna('')
+            table_data = table_data.fillna('')
 
             # Применение функций чистки к столбцам
-            data['НАИМЕНОВАНИЕ2'] = data['НАИМЕНОВАНИЕ2'].apply(clean_1)  # тут чистка на наличие латиницы
-            data['ТМ'] = data['ТМ'].apply(clean_2)  # тут чистка на наличие кириллицы
+            table_data['НАИМЕНОВАНИЕ2'] = table_data['НАИМЕНОВАНИЕ2'].apply(clean_1)  # тут чистка на наличие латиницы
+            table_data['ТМ'] = table_data['ТМ'].apply(clean_2)  # тут чистка на наличие кириллицы
 
-            return render_template('edit.html', data=data, columns=data.columns.tolist())
+            return render_template('edit.html', data=table_data, columns=table_data.columns.tolist())
 
 @app.route('/reg', methods=['GET'])
 def reg():
@@ -258,28 +262,43 @@ def page_not_found(error):
 
 
 @app.route('/update', methods=['GET', 'POST'])
+@cross_origin()
 def update():
-    global data
+    # global data
     json_data = request.get_json()
-    if 'data' in json_data:
-        incoming = json_data['data']
+    # if 'data' in json_data:
+    #     incoming = json_data['data']
+    # else:
+    #     # Handle the case where 'data' is not provided. Maybe return an error response.
+    #     return jsonify({'status': 'Error', 'message': 'Missing "data" key in the request'}), 400
+    # data = update_data(data, incoming)  # Обновляем данные в DataFrame
+    # return jsonify({'status': 'OK'})
+    global data
+    if not json_data or 'data' not in json_data:
+        return jsonify({'error': 'Missing data'}), 400
     else:
-        # Handle the case where 'data' is not provided. Maybe return an error response.
-        return jsonify({'status': 'Error', 'message': 'Missing "data" key in the request'}), 400
-    data = update_data(data, incoming)  # Обновляем данные в DataFrame
+        table_data = json_data.get('data')
+        print(f'json_data: {json_data}\n')
+        print(f'table_data: {table_data}')
+        update_data(data, table_data)
+        print(data)
+    # data = json_data['data']
+    # data = json_data.get('data', {})
+
     return jsonify({'status': 'OK'})
 
 
 @app.route('/save', methods=['POST'])
+@cross_origin()
 def save():
     """
     Сохранение данных в Excel файл и
     Очистка рабочего датафрейма data
     :return:
     """
-    global data
-    data.to_excel('Result.xlsx', index=False)
-    data = pd.DataFrame(columns=result_columns)
+    global table_data
+    table_data.to_excel('Result.xlsx', index=False)
+    table_data = pd.DataFrame(columns=result_columns)
     return redirect(url_for('edit'))
 
 
@@ -287,7 +306,7 @@ def save():
 # logic:
 ##########################################
 
-
+@cross_origin()
 def update_data(dataframe, incoming_data):
     """
     Функция для обновления данных в DataFrame
@@ -295,12 +314,15 @@ def update_data(dataframe, incoming_data):
     :param incoming_data:
     :return:
     """
-    global data
+    global table_data
     updated_dataframe = pd.read_html(incoming_data)[0]
+    print(updated_dataframe)
     updated_dataframe.columns = [result_columns]
     dataframe.update(updated_dataframe)
-    data = pd.concat([data, updated_dataframe], ignore_index=True, sort=False)
-    return data
+    print(dataframe)
+    table_data = pd.concat([table_data, updated_dataframe], ignore_index=True, sort=False)
+    print(table_data)
+    return table_data
 
 
 def clean_1(data):

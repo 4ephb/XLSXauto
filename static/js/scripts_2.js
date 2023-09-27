@@ -29,20 +29,15 @@ $(document).ready(function () {
             // $('#data-table').find('tr:eq(' + (rowIndex + 2) + ')').find('td:eq(' + columnIndex + ')').text(newValue);
 
             // Отправляем обновленные данные на сервер
-            $.ajax({
-                type: "POST",
-                url: "/update",
-                dataType: 'json',
-                contentType: 'application/json;charset=UTF-8',
-                data: JSON.stringify({data: data}),
-               // data: JSON.stringify({
-                //    id: cellId,
-                //    value: newValue,
-                //    data: data}),
-                success: function (result) {
-                    console.log(result);
-                }
-            });
+            // $.ajax({
+            //     url: "/update",
+            //     type: "POST",
+            //     dataType: 'json',
+            //     contentType: 'application/json',
+            //     data: JSON.stringify({
+            //         data: data
+            //     }),
+            // });
         }
     });
 });
