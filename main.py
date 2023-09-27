@@ -244,10 +244,18 @@ def page_not_found(error):
 def page_not_found(error):
     return render_template("500.html")
 
-
 #######
 # NEW #
 #######
+
+# @app.route('/update', methods=['POST'])
+# def update_data():
+#     global data
+#     incoming_data = request.json['data']
+#     new_data = pd.DataFrame(incoming_data, columns=result_columns)
+#     data = new_data
+#     return jsonify({'status': 'OK'})
+
 
 @app.route('/update', methods=['GET', 'POST'])
 def update():
