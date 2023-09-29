@@ -1,43 +1,85 @@
-<!-- JavaScript для автоматической отправки формы -->
-
 $(document).ready(function () {
-    let $contentEditableCells = $('td[contenteditable]');
-
-    $('#fileInput').change(function () {
-        // Симулируем нажатие на кнопку "Загрузить" при выборе файла
-        $('input[type="submit"]').click();
-    });
-
-    // При клике на ячейку начинаем редактирование
-    $contentEditableCells.on('click', function () {
-        $(this).data('oldValue', $(this).text());
-    });
-
-    // При нажатии на Enter заканчиваем редактирование и сохраняем данные в DataFrame
-    $contentEditableCells.on('keypress', function (e) {
-        if (e.which === 13) {
-            $(this).blur();
+    $('#ResultTable').DataTable({
+        // Задать номер строки, на которой должен быть зафиксирован заголовок
+        fixedHeader: {
+            header: true,
+            headerOffset: 0,
         }
-    }).on('blur', function () {
-        let newValue = $(this).text();
-        if (newValue !== $(this).data('oldValue')) {
-            // var columnIndex = $(this).index();
-            // var rowIndex = $(this).closest('tr').index() - 1;
-            let cellId = $(this).data('data-id');
-            $(this).data('oldValue', newValue);
-            let data = $('#data-table tbody').html();
-            // $('#data-table').find('tr:eq(' + (rowIndex + 2) + ')').find('td:eq(' + columnIndex + ')').text(newValue);
+    });
+});
 
-            // Отправляем обновленные данные на сервер
-            // $.ajax({
-            //     url: "/update",
-            //     type: "POST",
-            //     dataType: 'json',
-            //     contentType: 'application/json',
-            //     data: JSON.stringify({
-            //         data: data
-            //     }),
-            // });
+$('#fileInput').change(function () {
+    $('input[type="submit"]').click();
+});
+
+$('td').on('click', function() {
+    $(this).attr('contenteditable', 'true');
+    $(this).data('oldValue', $(this).text());
+});
+
+$('td').on('keydown', function(event) {
+    if (event.keyCode === 13) {
+        event.preventDefault();
+        $(this).blur();
+    } else if (event.keyCode === 27) {
+        event.preventDefault();
+        $(this).text($(this).data('oldValue'));
+        $(this).attr('contenteditable', 'false');
+    }
+}).on('blur', function() {
+    $(this).attr('contenteditable', 'false');
+    var headers = [];
+    $('th').each(function() {
+        headers.push($(this).text());
+    });
+
+    var rowIndex = $(this).closest('tr').index();
+    var colIndex = $(this).index();
+    // var newData = $(this).data('value');
+    var newData = $(this).text();
+
+    $.ajax({
+        type: 'POST',
+        url: '/update',
+        data: {rowIndex: rowIndex, colIndex: colIndex, newData: newData, headers: headers},
+        success: function(response) {
+            // Обновление ячейки таблицы новыми данными
+            $('table tr').eq(rowIndex + 1).find('td').eq(response.colIndex).text(response.newData);
+            // alert('Данные успешно обновлены!');
+        }
+    });
+});
+
+$('#saveBtn').on('click', function() {
+    var data = [];
+    var headers = [];
+
+    $('th').each(function() {
+        headers.push($(this).text());
+    });
+
+    var table = $('#ResultTable').DataTable();
+
+    table.rows().every(function () {
+        var rowData = []
+        $(this.node()).find('td').each(function () {
+            rowData.push($(this).text());
+        });
+        data.push(rowData)
+    });
+
+    // $('td').each(function() {
+    //     data.push($(this).text());
+    // });
+
+    $.ajax({
+        type: 'POST',
+        url: '/save',
+        // data: {data: data, headers: headers},
+        data: {data: JSON.stringify(data), headers: JSON.stringify(headers)},
+        // traditional: true,  // Для правильной сериализации массива
+        success: function(response) {
+            alert(response.message);
         }
     });
 });
