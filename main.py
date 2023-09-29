@@ -16,37 +16,116 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import forms
 # from flask_wtf import FlaskForm
 from utils import secret_key
-import openpyxl
 from flask_cors import CORS, cross_origin
-# import json
 
 ##########################################
 # init:
 ##########################################
-
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-# Имена колонок Result таблицы
-result_columns = [
-    'НАИМЕНОВАНИЕ1', 'НАИМЕНОВАНИЕ2', 'ИЗГОТОВИТЕЛЬ', 'ТМ', 'МАРКА', 'МОДЕЛЬ',
-    'АРТ', 'СПТ', 'КОЛ-ВО', 'КОД', 'НАИМ', 'КОД ТНВД', 'ДОП КОД', 'ВЕС ШТ',
-    'БР', 'НТ', '$/КГ', 'ЦЕНА', 'МЕСТА', 'МЕСТ ЧАСТ', 'ЕСТЬ/НЕТ', 'КОД УП',
-    'ДОП КОД УП', 'КОД №1', 'СЕРТ №1', 'НАЧАЛО №1', 'КОНЕЦ №1', 'КОД №2',
-    'СЕРТ №2', 'НАЧАЛО №2', 'КОНЕЦ №2'
+# Временные тестовые данные (в дальнейшем удалить)
+tnvd_names = [
+    {"names": "БАЛЬЗАМ ДЛЯ ГУБ", "tnvd": 3304990000},
+    {"names": "ВВ КРЕМ", "tnvd": 3304990000},
+    {"names": "СС КРЕМ", "tnvd": 3304990000},
+    {"names": "ВОДА ОЧИЩАЮЩАЯ", "tnvd": 3304990000},
+    {"names": "ГЕЛЬ ДЛЯ ДУША", "tnvd": 3401300000},
+    {"names": "ГЕЛЬ ДЛЯ ТЕЛА", "tnvd": 3304990000},
+    {"names": "ГЕЛЬ ДЛЯ УМЫВАНИЯ", "tnvd": 3401300000},
+    {"names": "ГИДРОФИЛЬНОЕ МАСЛО", "tnvd": 3304990000},
+    {"names": "ЗУБНАЯ ПАСТА", "tnvd": 3306100000},
+    {"names": "КАРАНДАШ ДЛЯ ГЛАЗ", "tnvd": 3304200000},
+    {"names": "КАРАНДАШ ДЛЯ ГУБ", "tnvd": 3304100000},
+    {"names": "КОНДИЦИОНЕР ДЛЯ ВОЛОС", "tnvd": 3305900009},
+    {"names": "КРЕМ ДЛЯ ГЛАЗ", "tnvd": 3304990000},
+    {"names": "КРЕМ ДЛЯ ЛИЦА", "tnvd": 3304990000},
+    {"names": "КРЕМ ДЛЯ РУК", "tnvd": 3304990000},
+    {"names": "КУШОН", "tnvd": 3304910000},
+    {"names": "ЛОСЬОН ДЛЯ ЛИЦА", "tnvd": 3304990000},
+    {"names": "ЛОСЬОН ДЛЯ ТЕЛА", "tnvd": 3304990000},
+    {"names": "МАСКА ГИДРОГЕЛЕВАЯ ДЛЯ ЛИЦА", "tnvd": 3304990000},
+    {"names": "МАСКА ДЛЯ ВОЛОС", "tnvd": 3305900009},
+    {"names": "МАСКА ДЛЯ ЛИЦА", "tnvd": 3304990000},
+    {"names": "МАСКА ДЛЯ НОГ", "tnvd": 3304990000},
+    {"names": "МАСКА ДЛЯ РУК", "tnvd": 3304990000},
+    {"names": "МАСКА САЛФЕТКА", "tnvd": 3307900008},
+    {"names": "МАСКА-САЛФЕТКА ДЛЯ ЛИЦА", "tnvd": 3307900008},
+    {"names": "МАСЛО ГИДРОФИЛЬНОЕ", "tnvd": 3304990000},
+    {"names": "МАСЛО ДЛЯ ТЕЛА", "tnvd": 3304990000},
+    {"names": "МИСТ ДЛЯ ЛИЦА", "tnvd": 3304990000},
+    {"names": "МЫЛО", "tnvd": 3401190000},
+    {"names": "НАБОР", "tnvd": 3304990000},
+    {"names": "НАБОР ДЛЯ ВОЛОС", "tnvd": 3305900009},
+    {"names": "НАБОРЫ", "tnvd": 3304990000},
+    {"names": "НОЧНАЯ МАСКА ДЛЯ ЛИЦА", "tnvd": 3304990000},
+    {"names": "ОЧИЩАЮЩАЯ ВОДА", "tnvd": 3401300000},
+    {"names": "ПАСТА ЗУБНАЯ", "tnvd": 3306100000},
+    {"names": "ПАТЧИ", "tnvd": 3304990000},
+    {"names": "ПАТЧИ ДЛЯ ГЛАЗ", "tnvd": 3304990000},
+    {"names": "ПЕНКА ДЛЯ УМЫВАНИЯ", "tnvd": 3401300000},
+    {"names": "ПЕНКА-ГЕЛЬ ДЛЯ УМЫВАНИЯ", "tnvd": 3401300000},
+    {"names": "ПЕНКА-ПОРОШОК ДЛЯ УМЫВАНИЯ", "tnvd": 3401300000},
+    {"names": "ПЕЧЕНЬЕ", "tnvd": 1905311500},
+    {"names": "ПЛАСТЫРЬ", "tnvd": 3307900008},
+    {"names": "ПОДВОДКА ДЛЯ ГЛАЗ", "tnvd": 3304200000},
+    {"names": "ПОМАДА", "tnvd": 3304100000},
+    {"names": "ПРАЙМЕР", "tnvd": 3304990000},
+    {"names": "ПУДРА", "tnvd": 3304910000},
+    {"names": "РОЛИКОВЫЙ МЕХАНИЧЕСКИЙ МАССАЖЕР", "tnvd": 9019109009},
+    {"names": "СКРАБ", "tnvd": 3304990000},
+    {"names": "СОЛЬ ДЛЯ ВАННЫ", "tnvd": 3307300000},
+    {"names": "СПРЕЙ ДЛЯ ВОЛОС", "tnvd": 3304990000},
+    {"names": "СРЕДСТВО ДЛЯ РЕСНИЦ", "tnvd": 3305900009},
+    {"names": "СРЕДСТВО ДЛЯ СНЯТИЯ МАКИЯЖА", "tnvd": 3304990000},
+    {"names": "СУТИНГ ГЕЛЬ", "tnvd": 3304990000},
+    {"names": "СЫВОРОТКА ДЛЯ ВОЛОС", "tnvd": 3304990000},
+    {"names": "СЫВОРОТКА ДЛЯ ЛИЦА", "tnvd": 3304990000},
+    {"names": "СЫВОРОТКА-ЭССЕНЦИИЯ ДЛЯ ЛИЦА", "tnvd": 3304990000},
+    {"names": "ТЕЙПЫ", "tnvd": 3307900008},
+    {"names": "ТИНТ ДЛЯ ГУБ", "tnvd": 3304100000},
+    {"names": "ТОНАЛЬНЫЙ КРЕМ", "tnvd": 3304990000},
+    {"names": "ТОНЕР ДЛЯ ЛИЦА", "tnvd": 3304990000},
+    {"names": "ТУАЛЕТНОЕ МЫЛО", "tnvd": 3401110009},
+    {"names": "ТУШЬ", "tnvd": 3304200000},
+    {"names": "ТУШЬ ДЛЯ РЕСНИЦ", "tnvd": 3304200000},
+    {"names": "ШАМПУНЬ", "tnvd": 3305100000},
+    {"names": "ШАМПУНЬ ДЛЯ ВОЛОС", "tnvd": 3305100000}
     ]
 
-table_data = pd.DataFrame(columns=result_columns)
+tnvd_description = [
+    {"number": 3304990000, "description": "КОСМЕТИЧЕСКОЕ СРЕДСТВО ДЛЯ УХОДА ЗА ЛИЦОМ И ТЕЛОМ, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
+    {"number": 3307900008, "description": "КОСМЕТИЧЕСКОЕ СРЕДСТВО НА ОСНОВЕ ИЗ НЕТКАНОГО МАТЕРИАЛА ДЛЯ УХОДА ЗА КОЖЕЙ ЛИЦА, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
+    {"number": 3401300000, "description": "МОЮЩЕЕ СТРЕДСТВО ДЛЯ ЛИЧНОЙ ГИГИЕНЫ, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
+    {"number": 3304200000, "description": "КОСМЕТИЧЕСКОЕ СРЕДСТВО ДЛЯ МАКИЯЖА ГЛАЗ, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
+    {"number": 3305100000, "description": "КОСМЕТИЧЕСКОЕ СТРЕДСТВО ДЛЯ УХОДА ЗА ВОЛОСАМИ НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
+    {"number": 3305900009, "description": "КОСМЕТИЧЕСКОЕ СТРЕДСТВО ДЛЯ УХОДА ЗА ВОЛОСАМИ НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
+    {"number": 3306100000, "description": "СРЕДСТВО ДЛЯ ГИГИЕНЫ ПОЛОСТИ РТА НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ СОДЕРЖАЩЕЕ ФТОРИДЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ОТБЕЛИВАНИЯ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
+    {"number": 9019109009, "description": "РОЛИКОВЫЙ МЕХАНИЧЕСКИЙ МАССАЖЕР ДЛЯ СНЯТИЯ УСТАЛОСТИ."},
+    {"number": 3304100000, "description": "КОСМЕТИЧЕСКОЕ СРЕДСТВО ДЕКОРАТИВНОЕ ДЛЯ МАКИЯЖА ЛИЦА, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ СОДЕРЖАЩЕЕ ФТОРИДЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ОТБЕЛИВАНИЯ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
+    {"number": 3304910000, "description": "КОСМЕТИЧЕСКОЕ СРЕДСТВО ДЛЯ МАКИЯЖА ЛИЦА, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
+    {"number": 3401190000, "description": "МОЮЩЕЕ СТРЕДСТВО ДЛЯ ЛИЧНОЙ ГИГИЕНЫ В БРУСКАХ, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
+    {"number": 3924900009, "description": "ИЗДЕЛИЯ ИЗ ПОЛИМЕРНОГО МАТЕРИАЛА ДЛЯ ДОМАШНЕГО ОБИХОДА."},
+    {"number": 6304191000, "description": "ИЗДЕЛИЕ ДЕКОРАТИВНОЕ ГОТОВОЕ ИЗ ТЕКСТИЛЬНЫХ МАТЕРИАЛОВ - ПОКРЫВАЛА ПОСТЕЛЬНЫЕ, ИЗГОТОВЛЕННЫЕ ИЗ ХЛОПЧАТОБУМАЖНЫХ ТКАНЕЙ."},
+    {"number": 1905311100, "description": "СЛАДКОЕ СУХОЕ ПЕЧЕНЬЕ ПОЛНОСТЬЮ ИЛИ ЧАСТИЧНО ПОКРЫТОЕ ШОКОЛАДОМ СОДЕРЖАЩИМИ КАКАО, В ПЕРВИЧНЫХ УПАКОВКАХ НЕТТО-МАССОЙ НЕ БОЛЕЕ 85 Г."},
+    {"number": 1905311900, "description": "СЛАДКОЕ СУХОЕ ПЕЧЕНЬЕ ПОЛНОСТЬЮ ИЛИ ЧАСТИЧНО ПОКРЫТОЕ ШОКОЛАДОМ СОДЕРЖАЩИМИ КАКАО, В ПЕРВИЧНЫХ УПАКОВКАХ НЕТТО-МАССОЙ БОЛЕЕ 85 Г."},
+    {"number": 3402500000, "description": "МОЮЩИЕ И ЧИСТЯЩИЕ СРЕДСТВА, ДЛЯ ХОЗ/БЫТОВЫХ НУЖД, РАСФАСОВАННЫЕ ДЛЯ РОЗНИЧНОЙ ПРОДАЖИ."},
+    {"number": 9603210000, "description": "ЩЕТКИ ЗУБНЫЕ ДЛЯ ВЗРОСЛЫХ, ИЗГОТОВЛЕНЫ ИЗ ПОЛИМЕРНЫХ МАТЕРИАЛОВ, СО ЩЕТИНОЙ ИЗ СИНТЕТИЧЕСКОГО ВОРСА."},
+    {"number": 3307300000, "description": "СОЛЬ ДЛЯ ВАНН, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
+    {"number": 9404400009, "description": "ПОКРЫВАЛА ДЛЯ КРОВАТЕЙ ПРОЧИЕ:"}
+    ]
+
+tnvd_info = pd.DataFrame(tnvd_description)  # <---не используется пока нигде
 
 
-class Base(DeclarativeBase):
+class Base(DeclarativeBase):  # <---ЧЁ ЭТО?
     pass
-
+#
 
 app = Flask(__name__)
 CORS(app)
 # CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
-DEBUG = True
+DEBUG = 1
 app.secret_key = 'secret'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'db/main.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -63,6 +142,7 @@ login_manager.init_app(app)
 secret_key(app)
 
 login_manager.login_view = 'login'
+
 
 ##########################################
 # models:
@@ -126,10 +206,10 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+
 ##########################################
 # routes:
 ##########################################
-
 
 @app.route('/', methods=['GET', 'POST'])
 @login_required
@@ -139,50 +219,37 @@ def home():
         print(*names)
         return render_template('home.html', current_user=current_user)
     else:
-        read_xlsx_file()
         return redirect(url_for('login'))
 
 
-@app.route('/edit', methods=['GET', 'POST'])
+@app.route('/upload', methods=['GET', 'POST'])
 @login_required
-def edit():
-    global table_data
-    if request.method == 'GET':
-        return render_template('edit.html', data=table_data)
-    elif request.method == 'POST':
-        if 'file' in request.files:
-            file = request.files['file']
-            if file.filename != '':
-                # Чтение данных из загруженного файла xlsx
-                excel_data = pd.read_excel(file)
-                # excel_data = excel_data.fillna('')
-                # Отображение только необходимых столбцов
-                excel_data = excel_data[['Наименование', 'Торговая Марка', 'Количество, шт.', 'Вес БРУТТО, кг.']]
-                # Переименование столбцов
-                excel_data.columns = ['НАИМЕНОВАНИЕ2', 'ТМ', 'КОЛ-ВО', 'БР']
-                # Фильтруем пустые или все NA записи из excel_data перед конкатенацией
-                excel_data = excel_data.dropna(how='all')  # Удаляем строки, в которых все записи являются NA
-                # Добавление данных в общую таблицу
-                if not excel_data.empty:
-                    table_data = pd.concat([table_data, excel_data], ignore_index=True)
-                    # data = pd.concat([data, excel_data.dropna(how='all')], ignore_index=True)
-                    # data = data.append(excel_data, ignore_index=True)
+def upload():
+    if request.method == 'POST':
+        file = request.files['file']
+        if file:
+            df = pd.read_excel(file)  # Чтение данных из загруженного файла xlsx
+            df = create_result_df(df)  # Преобразуем входящую таблицу в result таблицу
 
-            # Замена значений пустых ячеек с NaN на ''
-            table_data = table_data.fillna('')
+            # Применение функций чистки на наличие множественных/левых/правых пробелов
+            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].apply(clean_spaces)
+            df['ТМ'] = df['ТМ'].apply(clean_spaces)
 
-            # Применение функций чистки к столбцам
-            table_data['НАИМЕНОВАНИЕ2'] = table_data['НАИМЕНОВАНИЕ2'].apply(clean_1)  # тут чистка на наличие латиницы
-            table_data['ТМ'] = table_data['ТМ'].apply(clean_2)  # тут чистка на наличие кириллицы
+            # Применение функций чистки на наличие латиницы к данным столбцов
+            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].apply(clean_lat_symbols)
+            # Применение функций чистки на наличие кириллицы к данным столбцов
+            df['ТМ'] = df['ТМ'].apply(clean_cyr_symbols)
 
-            return render_template('edit.html', data=table_data, columns=table_data.columns.tolist())
+            headers = df.columns.tolist()  # Заголовки таблицы входящего файла
+            data = df.values.tolist()  # Данные таблицы входящего файла
 
-@app.route('/reg', methods=['GET'])
-def reg():
-    if request.method == 'GET':
-        if User.query.filter_by(name='oleg').first() is None:
-            User.register('oleg', '1234')
-        return redirect(url_for('home'))
+            # return {'headers': headers, 'data': data}
+            return render_template('edit.html', headers=headers, data=data)
+            # return redirect(url_for('edit2', headers=headers, data=data))
+    else:
+        # обработка GET запроса
+        # например, возвращение страницы с формой загрузки файла
+        return render_template('edit.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -249,44 +316,24 @@ def page_not_found(error):
 def page_not_found(error):
     return render_template("500.html")
 
+
 #######
 # NEW #
 #######
 
-# @app.route('/update', methods=['POST'])
-# def update_data():
-#     global data
-#     incoming_data = request.json['data']
-#     new_data = pd.DataFrame(incoming_data, columns=result_columns)
-#     data = new_data
-#     return jsonify({'status': 'OK'})
-
-
 @app.route('/update', methods=['POST'])
 @cross_origin()
 def update():
-    global table_data
-    json_data = request.get_json()
-    # if 'data' in json_data:
-    #     incoming = json_data['data']
-    # else:
-    #     # Handle the case where 'data' is not provided. Maybe return an error response.
-    #     return jsonify({'status': 'Error', 'message': 'Missing "data" key in the request'}), 400
-    # data = update_data(data, incoming)  # Обновляем данные в DataFrame
-    # return jsonify({'status': 'OK'})
-    # global data
-    if not json_data or 'data' not in json_data:
-        return jsonify({'error': 'Missing data'}), 400
-    else:
-        # table_data = json_data.get('data')
-        print(f'json_data: {json_data}\n')
-        print(f'table_data: {table_data}')
-        update_data(table_data, json_data.get('data', {}))
-        print(json_data.get('data', {}))
-    # data = json_data['data']
-    # data = json_data.get('data', {})
+    rowIndex = int(request.form.get('rowIndex'))
+    colIndex = int(request.form.get('colIndex'))
+    newData = request.form.get('newData')
 
-    return jsonify({'status': 'OK'})
+    upd_newData, upd_colIndex = route_by_columns(rowIndex, colIndex, newData)
+
+    # Создание ответа с обновленными данными
+    response_data = {'status': 'success', 'newData': upd_newData, 'colIndex': upd_colIndex, 'rowIndex': rowIndex}
+
+    return jsonify(response_data)
 
 
 @app.route('/save', methods=['POST'])
@@ -294,74 +341,151 @@ def update():
 def save():
     """
     Сохранение данных в Excel файл и
-    Очистка рабочего датафрейма data
-    :return:
+    :return: JSON response
     """
-    global table_data
-    table_data.to_excel('Result.xlsx', index=False)
-    table_data = pd.DataFrame(columns=result_columns)
-    return redirect(url_for('edit'))
+    # Получить заголовки
+    headers = request.form.get('headers')
+    headers = json.loads(headers)
+
+    # Получить данные со страницы
+    data = request.form.get('data')
+    data = json.loads(data)
+
+    # Запись данных в файл
+    df = pd.DataFrame(data, columns=headers)
+    df.to_excel('Result_.xlsx', index=False)
+
+    return jsonify({'message': 'Данные успешно сохранены!'})
 
 
 ##########################################
 # logic:
 ##########################################
 
-@cross_origin()
-def update_data(dataframe, incoming_data):
-    """
-    Функция для обновления данных в DataFrame
-    :param dataframe:
-    :param incoming_data:
-    :return:
-    """
-    global table_data
-    result_columns = dataframe.columns  # Получаем названия столбцов исходного DataFrame
-    # updated_dataframe = pd.read_json(incoming_data)
-    updated_dataframe = pd.read_json(json.dumps(incoming_data))
-    updated_dataframe.columns = result_columns  # Задаем названия столбцов согласно исходному DataFrame
-    # updated_dataframe.columns = [result_columns]
-    dataframe.update(updated_dataframe)
-    table_data = pd.concat([table_data, updated_dataframe], ignore_index=True, sort=False)
-    # return jsonify(table_data)
-    return table_data.to_json()  # Преобразуем DataFrame в JSON и возвращаем
+
+def get_tnvd_code(newData, column_name):
+    tnvd_df = pd.DataFrame(tnvd_names)
+    # Очистка newData с помощью функции stem_porter
+    cleaned_newData = stem_porter(newData)
+    # Итерация по датафрейму tnvd_names и проверка совпадений
+    tnvd_code = ''
+    for index, row in tnvd_df.iterrows():
+        # Очистка names с помощью функции stem_porter
+        cleaned_name = stem_porter(row['names'])
+        if cleaned_name == cleaned_newData:
+            # Получаем значение 'КОД ТНВД'
+            tnvd_code = tnvd_df['tnvd'][index]
+            # Преобразование tnvd_code в строку для сериализации в JSON
+            tnvd_code = str(tnvd_code)
+            # print(f"{tnvd_df['names'][index]} => {cleaned_name} == {cleaned_newData} : {tnvd_code}")
+            break
+    updated_colIndex = get_colIndex_by_colName(column_name)
+    return tnvd_code, updated_colIndex
 
 
-def clean_1(data):
+def route_by_columns(rowIndex, colIndex, newData):
+    """
+    В зависимости от имени редактируемой колонки,
+    применять определенный набор функций.
+    :return: (upd_newData), (upd_colIndex)
+    """
+    # Получаем Имя колонки отредактированной ячейки
+    col_name = get_colName_by_colIndex(colIndex)
+    print(col_name)
+
+    # Если редактировали значение в колонке 'НАИМЕНОВАНИЕ2',
+    if col_name == 'НАИМЕНОВАНИЕ2':
+        # то получаем 'КОД ТНВД' и индекс колонки
+        upd_newData, upd_colIndex = get_tnvd_code(newData, 'КОД ТНВД')
+    else:
+        return newData, colIndex
+
+    print(f'Col: {upd_colIndex} | Row: {rowIndex}')
+    print(f'{upd_newData}')
+    return upd_newData, upd_colIndex
+
+
+def get_colIndex_by_colName(colName):
+    """
+    Получаем Индекс колонки по Заголовоку колонки
+    :return: col_index
+    """
+    headers = request.form.getlist('headers[]')
+    col_index = headers.index(colName)
+    return col_index
+
+
+def get_colName_by_colIndex(colIndex):
+    """
+    Получаем Заголовок колонки по Индексу колонки
+    :return: col_name
+    """
+    headers = request.form.getlist('headers[]')
+    col_name = headers[colIndex]
+    return col_name
+
+
+def create_result_df(excel_df):
+    # Имена колонок Result таблицы
+    result_column_headers = [
+        'НАИМЕНОВАНИЕ1', 'НАИМЕНОВАНИЕ2', 'ИЗГОТОВИТЕЛЬ', 'ТМ', 'МАРКА', 'МОДЕЛЬ',
+        'АРТ', 'СПТ', 'КОЛ-ВО', 'КОД', 'НАИМ', 'КОД ТНВД', 'ДОП КОД', 'ВЕС ШТ',
+        'БР', 'НТ', '$/КГ', 'ЦЕНА', 'МЕСТА', 'МЕСТ ЧАСТ', 'ЕСТЬ/НЕТ', 'КОД УП',
+        'ДОП КОД УП', 'КОД №1', 'СЕРТ №1', 'НАЧАЛО №1', 'КОНЕЦ №1', 'КОД №2',
+        'СЕРТ №2', 'НАЧАЛО №2', 'КОНЕЦ №2'
+    ]
+    # Определяем датафрейм result_df с заголовками result_column_headers
+    result_df = pd.DataFrame(columns=result_column_headers)
+    # Отображение только необходимых столбцов
+    excel_df = excel_df[['Наименование', 'Торговая Марка', 'Количество, шт.', 'Вес БРУТТО, кг.']]
+    # Переименование столбцов
+    excel_df.columns = ['НАИМЕНОВАНИЕ2', 'ТМ', 'КОЛ-ВО', 'БР']
+    # Фильтруем пустые или все NA записи из excel_data перед конкатенацией
+    excel_df = excel_df.dropna(how='all')  # Удаляем строки, в которых все записи являются NA
+    # Добавление данных в общую таблицу
+    if not excel_df.empty:
+        result_df = pd.concat([result_df, excel_df], ignore_index=True)
+        # Замена значений пустых ячеек с NaN на ''
+        result_df = result_df.fillna('')
+    # print(result_df)
+    return result_df
+
+
+def clean_lat_symbols(data):
     """
     Функция для очистки данных в столбце НАИМЕНОВАНИЕ2
+    на наличие символов латиницы
     должна возвращать очищенные данные
     """
     cleaned_data = data
     return cleaned_data
 
 
-def clean_2(data):
+def clean_cyr_symbols(data):
     """
     Функция для очистки данных в столбце ТМ
+    на наличие символов кириллицы
     должна возвращать очищенные данные
     """
     cleaned_data = data
     return cleaned_data
 
 
-def read_xlsx_file():
-    print('reading xlsx..')
+def clean_spaces(data):
+    """
+        Функция для очистки данных в строковых столбцах
+        на наличие множественных/левых/правых пробелов
+        должна возвращать очищенные данные
+        """
+    cleaned_data = data
+    return cleaned_data
 
 
-def save_xlsx_file():
-    print('saving xlsx..')
-
-
-#######
-# NEW #
-#######
-
-# def process_excel(file_path, column_name):
-#     df = pd.read_excel(file_path)
-#     df[column_name] = df[column_name].apply(clean_1(df))
-#     return df
-#
-#
-# def save_excel(df, file_path):
-#     df.to_excel(file_path, index=False)
+def stem_porter(data):
+    """
+        Функция для очистки данных в строковых столбцах
+        Стеммер Портера
+        должна возвращать очищенные данные
+        """
+    cleaned_data = data.lower()
+    return cleaned_data
