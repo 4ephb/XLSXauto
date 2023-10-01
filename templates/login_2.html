@@ -1,9 +1,9 @@
-{% extends 'base.html' %}
+{% extends 'layout.html' %}
 {% import "bootstrap/wtf.html" as wtf %}
 
 {% block styles %}
-    {{super()}}
-    <link rel="stylesheet" href="{{url_for('static', filename='styles/signin.css')}}">
+    {{ super() }}
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/signin.css') }}">
 {% endblock %}
 
 {% block content %}

@@ -13,10 +13,11 @@ from sqlalchemy import Integer, String, Float
 import pandas as pd
 from flask_login import UserMixin, LoginManager, current_user, login_required, login_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_cors import CORS, cross_origin
 import forms
 # from flask_wtf import FlaskForm
 from utils import secret_key
-from flask_cors import CORS, cross_origin
+
 
 ##########################################
 # init:
@@ -117,15 +118,14 @@ tnvd_description = [
 tnvd_info = pd.DataFrame(tnvd_description)  # <---не используется пока нигде
 
 
-class Base(DeclarativeBase):  # <---ЧЁ ЭТО?
+class Base(DeclarativeBase):  # На потом
     pass
-#
+
 
 app = Flask(__name__)
 CORS(app)
 # CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
-DEBUG = 1
 app.secret_key = 'secret'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'db/main.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -176,6 +176,10 @@ class BrandCategories(db.Model):
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
+    # id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # name: Mapped[str] = mapped_column(String, index=True, unique=True)
+    # password_hash: Mapped[str] = mapped_column(String(255))
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), index=True, unique=True)
     password_hash = db.Column(db.String(255))
@@ -212,7 +216,7 @@ def load_user(user_id):
 ##########################################
 
 @app.route('/', methods=['GET', 'POST'])
-@login_required
+# @login_required
 def home():
     if request.method == 'GET':
         names = db.session.execute(db.select(TNVDName).order_by(TNVDName.id)).scalars()
@@ -223,7 +227,7 @@ def home():
 
 
 @app.route('/upload', methods=['GET', 'POST'])
-@login_required
+# @login_required
 def upload():
     if request.method == 'POST':
         file = request.files['file']
@@ -248,7 +252,7 @@ def upload():
             # return redirect(url_for('edit2', headers=headers, data=data))
     else:
         # обработка GET запроса
-        # например, возвращение страницы с формой загрузки файла
+        # возвращение страницы с формой загрузки файла
         return render_template('edit.html')
 
 
@@ -288,8 +292,16 @@ def register():
             return redirect(url_for('login'))
 
 
+@app.route('/reg', methods=['GET'])
+def reg():
+    if request.method == 'GET':
+        if User.query.filter_by(name='oleg').first() is None:
+            User.register('oleg', '1234')
+        return redirect(url_for('home'))
+
+
 @app.route("/logout", methods=['GET', 'POST'])
-@login_required
+# @login_required
 def logout():
     logout_user()
     return redirect(url_for('login'))
@@ -322,21 +334,27 @@ def page_not_found(error):
 #######
 
 @app.route('/update', methods=['POST'])
+# @login_required
 @cross_origin()
 def update():
-    rowIndex = int(request.form.get('rowIndex'))
-    colIndex = int(request.form.get('colIndex'))
-    newData = request.form.get('newData')
+    request_data = request.get_json(force=True)
+    rowIndex = int(request_data['rowIndex'])
+    colIndex = int(request_data['colIndex'])
+    # cellData = request_data['cellData']
+    rowData = request_data['rowData']
+    # headers = request_data['headers']
+    headers = request_data.get('headers', [])
 
-    upd_newData, upd_colIndex = route_by_columns(rowIndex, colIndex, newData)
+    upd_rowData = route_by_columns(rowIndex, colIndex, rowData, headers)
 
     # Создание ответа с обновленными данными
-    response_data = {'status': 'success', 'newData': upd_newData, 'colIndex': upd_colIndex, 'rowIndex': rowIndex}
+    response_data = {'status': 'success', 'rowIndex': rowIndex, 'rowData': upd_rowData}
 
     return jsonify(response_data)
 
 
 @app.route('/save', methods=['POST'])
+# @login_required
 @cross_origin()
 def save():
     """
@@ -363,64 +381,96 @@ def save():
 ##########################################
 
 
-def get_tnvd_code(newData, column_name):
+# def get_tnvd_code(cellData, column_name):
+#     tnvd_df = pd.DataFrame(tnvd_names)
+#     # Очистка cellData с помощью функции stem_porter
+#     cleaned_cellData = stem_porter(cellData)
+#     # Итерация по датафрейму tnvd_names и проверка совпадений
+#     tnvd_code = ''
+#     for index, row in tnvd_df.iterrows():
+#         # Очистка names с помощью функции stem_porter
+#         cleaned_name = stem_porter(row['names'])
+#         if cleaned_name == cleaned_cellData:
+#             # Получаем значение 'КОД ТНВД'
+#             tnvd_code = tnvd_df['tnvd'][index]
+#             # Преобразование tnvd_code в строку для сериализации в JSON
+#             tnvd_code = str(tnvd_code)
+#             # print(f"{tnvd_df['names'][index]} => {cleaned_name} == {cleaned_cellData} : {tnvd_code}")
+#             break
+#     updated_colIndex = get_colIndex_by_colName(column_name)
+#     return tnvd_code, updated_colIndex
+#
+#
+def get_tnvd_code(colIndex, rowData, headers, column_name):
     tnvd_df = pd.DataFrame(tnvd_names)
-    # Очистка newData с помощью функции stem_porter
-    cleaned_newData = stem_porter(newData)
+    # Очистка cellData с помощью функции stem_porter
+    cellData = rowData[colIndex]
+    cleaned_cellData = stem_porter(cellData)
+    print(cleaned_cellData)
+    upd_rowData = []
     # Итерация по датафрейму tnvd_names и проверка совпадений
-    tnvd_code = ''
     for index, row in tnvd_df.iterrows():
         # Очистка names с помощью функции stem_porter
         cleaned_name = stem_porter(row['names'])
-        if cleaned_name == cleaned_newData:
+        if cleaned_name == cleaned_cellData:
             # Получаем значение 'КОД ТНВД'
             tnvd_code = tnvd_df['tnvd'][index]
             # Преобразование tnvd_code в строку для сериализации в JSON
             tnvd_code = str(tnvd_code)
-            # print(f"{tnvd_df['names'][index]} => {cleaned_name} == {cleaned_newData} : {tnvd_code}")
+            new_index = get_colIndex_by_colName(column_name, headers)
+            rowData[new_index] = '+' + rowData[new_index]
+            upd_rowData = rowData
             break
-    updated_colIndex = get_colIndex_by_colName(column_name)
-    return tnvd_code, updated_colIndex
+
+    return upd_rowData
 
 
-def route_by_columns(rowIndex, colIndex, newData):
+def route_by_columns(rowIndex, colIndex, rowData, headers):
     """
     В зависимости от имени редактируемой колонки,
     применять определенный набор функций.
-    :return: (upd_newData), (upd_colIndex)
+    :return: (upd_colIndex), (upd_rowData),
     """
     # Получаем Имя колонки отредактированной ячейки
-    col_name = get_colName_by_colIndex(colIndex)
-    print(col_name)
+    col_name = get_colName_by_colIndex(colIndex, headers)
 
     # Если редактировали значение в колонке 'НАИМЕНОВАНИЕ2',
+    upd_rowData = []
     if col_name == 'НАИМЕНОВАНИЕ2':
         # то получаем 'КОД ТНВД' и индекс колонки
-        upd_newData, upd_colIndex = get_tnvd_code(newData, 'КОД ТНВД')
+        print(col_name)
+        print(rowData)
+        upd_rowData = get_tnvd_code(colIndex, rowData, headers, 'КОД ТНВД')
+    if col_name == 'ТМ':
+        rowData[0] = '+' + rowData[0]
     else:
-        return newData, colIndex
+        return rowData
 
-    print(f'Col: {upd_colIndex} | Row: {rowIndex}')
-    print(f'{upd_newData}')
-    return upd_newData, upd_colIndex
+    upd_rowIndex = rowIndex
+    upd_colIndex = colIndex
+
+    print(f'Col: {upd_colIndex} | Row: {upd_rowIndex}')
+    print(f'{upd_rowData}')
+
+    return upd_rowData
 
 
-def get_colIndex_by_colName(colName):
+def get_colIndex_by_colName(colName, headers):
     """
     Получаем Индекс колонки по Заголовоку колонки
     :return: col_index
     """
-    headers = request.form.getlist('headers[]')
+    # headers = request.form.getlist('headers[]')
     col_index = headers.index(colName)
     return col_index
 
 
-def get_colName_by_colIndex(colIndex):
+def get_colName_by_colIndex(colIndex, headers):
     """
     Получаем Заголовок колонки по Индексу колонки
     :return: col_name
     """
-    headers = request.form.getlist('headers[]')
+    # headers = request.form.getlist('headers[]')
     col_name = headers[colIndex]
     return col_name
 
@@ -489,3 +539,9 @@ def stem_porter(data):
         """
     cleaned_data = data.lower()
     return cleaned_data
+
+
+
+
+if __name__ == '__main__':
+    app.run()

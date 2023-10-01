@@ -35,33 +35,16 @@ $('td').on('keydown', function(event) {
 
     var rowIndex = $(this).closest('tr').index();
     var colIndex = $(this).index();
-    // var cellData = $(this).data('value');
-    // var cellData = $(this).text();
-    var rowData = [];
-    $(this).closest('tr').find('td').each(function() {
-       rowData.push($(this).text());
-    });
+    // var newData = $(this).data('value');
+    var newData = $(this).text();
 
     $.ajax({
         type: 'POST',
         url: '/update',
-        data: JSON.stringify({
-            rowIndex: rowIndex,
-            colIndex: colIndex,
-            // cellData: cellData,
-            headers: headers,
-            rowData: rowData,
-        }),
-        contentType: 'aplication/json',
+        data: {rowIndex: rowIndex, colIndex: colIndex, newData: newData, headers: headers},
         success: function(response) {
-            // // Обновление ячейки таблицы новыми данными
-            // $('table tr').eq(rowIndex + 1).find('td').eq(response.colIndex).text(response.cellData);
-
-            // Обновление всей строки новыми данными
-            $('table tr').eq(response.rowIndex + 1).find('td').each(function(index) {
-                $(this).text(response.rowData[index]);
-            });
-
+            // Обновление ячейки таблицы новыми данными
+            $('table tr').eq(rowIndex + 1).find('td').eq(response.colIndex).text(response.newData);
             // alert('Данные успешно обновлены!');
         }
     });

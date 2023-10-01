@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'layout.html' %}
 
 {% block content %}
     <main>
@@ -37,12 +37,15 @@
 {#            <button type="submit" id="saveBtn">Сохранить</button>#}
 {#        </form>#}
     </main>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap5.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.0.1/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.0.1/js/buttons.bootstrap5.min.js"></script>
-    {#        <script src="https://cdn.datatables.net/buttons/2.0.1/js/buttons.html5.min.js"></script>#}
-    <script src="https://cdn.datatables.net/fixedheader/3.1.9/js/dataTables.fixedHeader.min.js"></script>
-    <script src="{{ url_for('static', filename='js/scripts_2.js') }}"></script>
+    {% block scripts %}
+        {{ super() }}
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+        <script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap5.min.js"></script>
+        <script src="https://cdn.datatables.net/buttons/2.0.1/js/dataTables.buttons.min.js"></script>
+        <script src="https://cdn.datatables.net/buttons/2.0.1/js/buttons.bootstrap5.min.js"></script>
+        {#        <script src="https://cdn.datatables.net/buttons/2.0.1/js/buttons.html5.min.js"></script>#}
+        <script src="https://cdn.datatables.net/fixedheader/3.1.9/js/dataTables.fixedHeader.min.js"></script>
+        <script src="{{ url_for('static', filename='js/scripts_2.js') }}"></script>
+    {% endblock %}
 {% endblock %}
