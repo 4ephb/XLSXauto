@@ -216,7 +216,7 @@ def load_user(user_id):
 ##########################################
 
 @app.route('/', methods=['GET', 'POST'])
-# @login_required
+@login_required
 def home():
     if request.method == 'GET':
         names = db.session.execute(db.select(TNVDName).order_by(TNVDName.id)).scalars()
@@ -227,7 +227,7 @@ def home():
 
 
 @app.route('/upload', methods=['GET', 'POST'])
-# @login_required
+@login_required
 def upload():
     if request.method == 'POST':
         file = request.files['file']
@@ -301,7 +301,7 @@ def reg():
 
 
 @app.route("/logout", methods=['GET', 'POST'])
-# @login_required
+@login_required
 def logout():
     logout_user()
     return redirect(url_for('login'))
@@ -334,7 +334,7 @@ def page_not_found(error):
 #######
 
 @app.route('/update', methods=['POST'])
-# @login_required
+@login_required
 @cross_origin()
 def update():
     request_data = request.get_json(force=True)
@@ -354,7 +354,7 @@ def update():
 
 
 @app.route('/save', methods=['POST'])
-# @login_required
+@login_required
 @cross_origin()
 def save():
     """
@@ -418,8 +418,10 @@ def get_tnvd_code(colIndex, rowData, headers, column_name):
             # Преобразование tnvd_code в строку для сериализации в JSON
             tnvd_code = str(tnvd_code)
             new_index = get_colIndex_by_colName(column_name, headers)
+
             rowData[new_index] = '+' + rowData[new_index]
             upd_rowData = rowData
+
             break
 
     return upd_rowData
@@ -441,17 +443,17 @@ def route_by_columns(rowIndex, colIndex, rowData, headers):
         print(col_name)
         print(rowData)
         upd_rowData = get_tnvd_code(colIndex, rowData, headers, 'КОД ТНВД')
+        print(f'{upd_rowData}')
     if col_name == 'ТМ':
         rowData[0] = '+' + rowData[0]
+        upd_rowData = rowData
     else:
         return rowData
 
     upd_rowIndex = rowIndex
     upd_colIndex = colIndex
-
     print(f'Col: {upd_colIndex} | Row: {upd_rowIndex}')
     print(f'{upd_rowData}')
-
     return upd_rowData
 
 
