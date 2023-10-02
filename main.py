@@ -8,8 +8,8 @@ import os
 from flask import Flask, render_template, redirect, request, url_for, flash, jsonify, json
 from flask_sqlalchemy import SQLAlchemy
 from flask_bootstrap import Bootstrap
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import Integer, String, Float
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+from sqlalchemy import Integer, String, Float, ForeignKey, create_engine, func
 import pandas as pd
 from flask_login import UserMixin, LoginManager, current_user, login_required, login_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -144,9 +144,58 @@ secret_key(app)
 login_manager.login_view = 'login'
 
 
+
+# # Создание подключения к базе данных
+# engine = create_engine('your_database_url')
+#
+# # Как идея
+# get_tnvd_code(colIndex, rowData, headers, column_name, engine)
+
+
 ##########################################
 # models:
 ##########################################
+
+#######
+# NEW #
+#######
+
+
+class Certificates(db.Model):
+    __tablename__ = 'certificates'
+    id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True)
+    code: Mapped[str] = mapped_column(String, nullable=False)
+    cert_name: Mapped[str] = mapped_column(String, nullable=False)
+    start_date: Mapped[str] = mapped_column(String, nullable=False)
+    exp_date: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class TradeMarks(db.Model):
+    __tablename__ = 'trade_marks'
+    cert_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'), nullable=False)
+    trade_mark: Mapped[str] = mapped_column(String, nullable=False)
+    manufacturer: Mapped[str] = mapped_column(String)
+    category: Mapped[int] = mapped_column(Integer(length=1))
+
+
+class Designations2(db.Model):
+    __tablename__ = 'designations_2'
+    cert_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'), nullable=False)
+    designation: Mapped[str] = mapped_column(String, nullable=False)
+    hscode: Mapped[str] = mapped_column(String, nullable=False)
+    s_low: Mapped[float] = mapped_column(Float, nullable=False)
+    s_high: Mapped[float] = mapped_column(Float)
+
+
+class Designations1(db.Model):
+    __tablename__ = 'designations_1'
+    hscode: Mapped[str] = mapped_column(String, nullable=False)
+    designation: Mapped[str] = mapped_column(String, nullable=False)
+
+
+#######
+# OLD #
+#######
 
 
 class TNVDName(db.Model):
@@ -179,7 +228,6 @@ class User(UserMixin, db.Model):
     # id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # name: Mapped[str] = mapped_column(String, index=True, unique=True)
     # password_hash: Mapped[str] = mapped_column(String(255))
-
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), index=True, unique=True)
     password_hash = db.Column(db.String(255))
@@ -402,29 +450,42 @@ def save():
 #
 #
 def get_tnvd_code(colIndex, rowData, headers, column_name):
-    tnvd_df = pd.DataFrame(tnvd_names)
     # Очистка cellData с помощью функции stem_porter
     cellData = rowData[colIndex]
     cleaned_cellData = stem_porter(cellData)
     print(cleaned_cellData)
     upd_rowData = []
-    # Итерация по датафрейму tnvd_names и проверка совпадений
-    for index, row in tnvd_df.iterrows():
-        # Очистка names с помощью функции stem_porter
-        cleaned_name = stem_porter(row['names'])
-        if cleaned_name == cleaned_cellData:
-            # Получаем значение 'КОД ТНВД'
-            tnvd_code = tnvd_df['tnvd'][index]
-            # Преобразование tnvd_code в строку для сериализации в JSON
-            tnvd_code = str(tnvd_code)
-            new_index = get_colIndex_by_colName(column_name, headers)
 
-            rowData[new_index] = '+' + rowData[new_index]
-            upd_rowData = rowData
+    # Создание сессии
+    Session = sessionmaker(bind=engine)
+    session = Session()
 
-            break
+    # Применение функции stem_porter к каждому значению столбца designation
+    cleaned_designation = func.stem_porter(Designations2.designation)
 
+    # Получение всех записей из таблицы "designations_2" с совпадающим значением "designation"
+    # matching_designations = session.query(Designations2).filter(Designations2.designation == cleaned_cellData).all()
+    matching_designations = session.query(Designations2).filter(cleaned_designation == cleaned_cellData).all()
+
+    # Итерация по совпавшим записям и вывод значений
+    for designation in matching_designations:
+        certificates_id = designation.cert_id
+        designations_2_id = designation.cert_id
+        hscode = designation.hscode
+        print(f"Совпавшее значение id из таблицы certificates: {certificates_id}")
+        print(f"Значение cert_id из таблицы designations_2: {designations_2_id}")
+        print(f"Значение hscode из таблицы designations_2: {hscode}")
+        upd_rowData = string_collector(rowData, hscode, column_name, headers)
+
+    # Закрытие сессии
+    session.close()
     return upd_rowData
+
+
+def string_collector(rowData, value, col_name, headers):
+    index = get_colIndex_by_colName(col_name, headers)
+    rowData[index] = value
+    return rowData
 
 
 def route_by_columns(rowIndex, colIndex, rowData, headers):
