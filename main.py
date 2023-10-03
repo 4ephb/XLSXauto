@@ -11,7 +11,6 @@ from flask_bootstrap import Bootstrap
 from flask_login import UserMixin, LoginManager, current_user, login_required, login_user, logout_user
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, create_engine, func, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker, relationship  # , Mapped, mapped_column
-# from sqlalchemy.ext.declarative import declarative_base
 
 import pandas as pd
 
@@ -40,7 +39,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'db
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(model_class=Base)
 # db = SQLAlchemy()
-# Base = declarative_base()
 # Base = db.Model
 
 bootstrap = Bootstrap()
@@ -75,14 +73,6 @@ class Certificates(Base):
         Связана с моделью Certificates через внешний ключ cert_id.
     """
     __tablename__ = 'certificates'
-    # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
-    # code: Mapped[str] = mapped_column(String, nullable=False)
-    # cert_name: Mapped[str] = mapped_column(String, nullable=False)
-    # start_date: Mapped[str] = mapped_column(String, nullable=False)
-    # exp_date: Mapped[str] = mapped_column(String, nullable=False)
-    # children_1: Mapped[List["TradeMarks"]] = relationship("TradeMarks", back_populates="parent")
-    # children_2: Mapped[List["Designations2"]] = relationship("Designations2", back_populates="parent")
-
     id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
     code = Column(String, nullable=False)
     cert_name = Column(String, nullable=False)
@@ -98,19 +88,11 @@ class Designations2(Base):
     PARENT: Certificates
     Связана с моделью Certificates через внешний ключ cert_id.
     Одна запись в Designations2 может быть связана с одной записью в Certificates.
-    Однонаправленная связь - можно получить объект Certificates из объекта Designations2 (не наоборот).
-    Связь определена с помощью атрибута certificate, который указывает на объект Certificates, связанный с данной записью Designations2.
+    Однонаправленная связь: получить объект Certificates из объекта Designations2 (не наоборот).
+    Связь определена с помощью атрибута certificate, который указывает на объект Certificates,
+    связанный с данной записью Designations2.
     """
     __tablename__ = 'designations_2'
-    # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
-    # cert_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'), nullable=False)
-    # designation: Mapped[str] = mapped_column(String, nullable=False)
-    # hscode: Mapped[str] = mapped_column(String, nullable=False)
-    # s_low: Mapped[float] = mapped_column(Float, nullable=False)
-    # s_high: Mapped[float] = mapped_column(Float)
-    # parent_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'))
-    # parent: Mapped["Certificates"] = relationship(back_populates="designations")
-
     id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
     cert_id = Column(Integer, ForeignKey('certificates.id'), nullable=False)
     designation = Column(String, nullable=False)
@@ -126,18 +108,11 @@ class TradeMarks(Base):
     PARENT: Certificates
     Связана с моделью Certificates через внешний ключ cert_id.
     Одна запись в TradeMarks может быть связана с одной записью в Certificates.
-    Однонаправленная связь - можно получить объект Certificates из объекта TradeMarks (не наоборот).
-    Связь определена с помощью атрибута certificate, который указывает на объект Certificates, связанный с данной записью TradeMarks.
+    Однонаправленная связь: получить объект Certificates из объекта TradeMarks (не наоборот).
+    Связь определена с помощью атрибута certificate, который указывает на объект Certificates,
+    связанный с данной записью TradeMarks.
     """
     __tablename__ = 'trade_marks'
-    # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
-    # cert_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'), nullable=False)
-    # trade_mark: Mapped[str] = mapped_column(String, nullable=False)
-    # manufacturer: Mapped[str] = mapped_column(String)
-    # category: Mapped[int] = mapped_column(Integer)
-    # parent_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'))
-    # parent: Mapped["Certificates"] = relationship(back_populates="trademarks")
-
     id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
     cert_id = Column(Integer, ForeignKey('certificates.id'), nullable=False)
     trade_mark = Column(String, nullable=False)
@@ -151,10 +126,6 @@ class Designations1(Base):
     Модель Designations1 не имеет связей с другими моделями.
     """
     __tablename__ = 'designations_1'
-    # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
-    # hscode: Mapped[str] = mapped_column(String, nullable=False)
-    # designation: Mapped[str] = mapped_column(String, nullable=False)
-
     id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
     hscode = Column(String, nullable=False)
     designation = Column(String, nullable=False)
@@ -367,74 +338,79 @@ def save():
 ##########################################
 
 
-# def get_tnvd_code(cellData, column_name):
-#     tnvd_df = pd.DataFrame(tnvd_names)
-#     # Очистка cellData с помощью функции stem_porter
-#     cleaned_cellData = stem_porter(cellData)
-#     # Итерация по датафрейму tnvd_names и проверка совпадений
-#     tnvd_code = ''
-#     for index, row in tnvd_df.iterrows():
-#         # Очистка names с помощью функции stem_porter
-#         cleaned_name = stem_porter(row['names'])
-#         if cleaned_name == cleaned_cellData:
-#             # Получаем значение 'КОД ТНВД'
-#             tnvd_code = tnvd_df['tnvd'][index]
-#             # Преобразование tnvd_code в строку для сериализации в JSON
-#             tnvd_code = str(tnvd_code)
-#             # print(f"{tnvd_df['names'][index]} => {cleaned_name} == {cleaned_cellData} : {tnvd_code}")
-#             break
-#     updated_colIndex = get_colIndex_by_colName(column_name)
-#     return tnvd_code, updated_colIndex
-
-
-def get_tnvd_code(colIndex, rowData, headers, column_name, engine):
-    # Очистка cellData с помощью функции stem_porter
-    cellData = rowData[colIndex]
-    stem_cellData = stem_porter(cellData)
-    print(f'stem_cellData = {stem_cellData}')
-
-    upd_rowData = rowData
+def get_cert_info(engine, headers, rowData, naim_value, tm_value):
+    # Чистка данных с помощью функции stem_porter()
+    stem_naim_value = stem_porter(naim_value)
+    stem_tm_value = stem_porter(tm_value)
+    print(f'stem_naim_value = {stem_naim_value}')
+    print(f'stem_tm_value = {stem_tm_value}\n')
 
     # Создание сессии
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    # Применение функции stem_porter к каждому значению столбца designation
-    cleaned_designation = func.stem_porter(Designations2.designation)
-    print()
+    # Применение функции stem_porter к каждому значению столбца Designations2.designation
+    stem_designation = func.stem_porter(Designations2.designation)
+    # Применение функции stem_porter к каждому значению столбца TradeMarks.trade_mark
+    stem_trademarks = func.stem_porter(TradeMarks.trade_mark)
 
-    # Поиск записей в таблице Designations2, у которых значение поля designation после применения функции stem_porter совпадает с очищенным значением cellData
-    matching_cert_ids = session.query(Designations2.cert_id).filter(cleaned_designation == stem_cellData).distinct().all()
+    # Ну это алхимия)))
+    matching_records = session.query(Designations2.designation,
+                                     TradeMarks.manufacturer,
+                                     TradeMarks.trade_mark,
+                                     Designations2.hscode,
+                                     Designations2.s_low,
+                                     Designations2.s_high,
+                                     Certificates.code,
+                                     Certificates.cert_name,
+                                     Certificates.start_date,
+                                     Certificates.exp_date,
+                                     TradeMarks.category).join(
+        TradeMarks, Designations2.cert_id == TradeMarks.cert_id).join(
+        Certificates, Designations2.cert_id == Certificates.id).filter(
+        stem_designation == stem_naim_value,
+        stem_trademarks == stem_tm_value).distinct().all()
 
-    # Вывод найденных значений cert_id в консоль
-    for cert_id in matching_cert_ids:
-        print(cert_id[0])
+    # Вывод найденных значений в консоль
+    if len(matching_records) > 0:
+        for record in matching_records:
+            print(f'{record}\n')
+    else:
+        print('Не найдено совпадающих записей!')
 
+    # Получаем правильный $/КГ в зависимости от TradeMarks.category
+    matching_records = get_coefficient(matching_records)
 
+    # Вывод отсортированных значений в консоль
+    if len(matching_records) > 0:
+        for record in matching_records:
+            print(f'{record}\n')
+
+    # Заголовки таблицы в которых необходимо заменить полученные значения
+    data_headers = ['НАИМЕНОВАНИЕ2','ИЗГОТОВИТЕЛЬ','ТМ','КОД ТНВД','$/КГ','КОД №1','СЕРТ №1','НАЧАЛО №1','КОНЕЦ №1']
+    # Подставляем значения в правильное место наполняемой строки
+    upd_rowData = string_collector(rowData, headers, matching_records, data_headers)
+
+    # Смотрим данные из Designations2
     # designations_2_data = db.session.execute(db.select(Designations2).order_by(Designations2.hscode)).scalars()
     # for value in designations_2_data:
     #     print("{:<5} {:<3} {:<55} {:<11} {:<5} {:<5}".format(value.id, value.cert_id, value.designation, value.hscode, value.s_low, value.s_high))
     #     # print(f'{value.id}\t{value.cert_id}\t{value.designation}\t{value.hscode}\t{value.s_low}\t{value.s_high}')
 
-
-    # Получение всех записей из таблицы "designations_2" с совпадающим значением "designation"
-    # matching_designations = session.query(Designations2).filter(Designations2.designation == cleaned_cellData).all()
-    # matching_designations = session.query(Designations2).filter(cleaned_designation == cleaned_cellData).all()
-    # matching_designations = session.query(Designations2).filter(func.stem_porter(Designations2.designation) == cleaned_cellData).all()
-
-    # Итерация по совпавшим записям и вывод значений
-    # for designation in matching_designations:
-    #     certificates_id = designation.cert_id
-    #     designations_2_id = designation.cert_id
-    #     hscode = designation.hscode
-    #     print(f"Совпавшее значение id из таблицы certificates: {certificates_id}")
-    #     print(f"Значение cert_id из таблицы designations_2: {designations_2_id}")
-    #     print(f"Значение hscode из таблицы designations_2: {hscode}")
-    #     upd_rowData = string_collector(rowData, hscode, column_name, headers)
-
     # Закрытие сессии
     session.close()
     return upd_rowData
+
+
+def get_coefficient(matching_records):
+    new_records = []
+    for record in matching_records:
+        if record[10] == 0:
+            new_record = record[:5] + record[6:10]
+        else:
+            new_record = record[:4] + record[5:10]
+        new_records.append(new_record)
+    return new_records[0]
 
 
 @event.listens_for(engine, "connect")
@@ -442,10 +418,24 @@ def sqlite_connect(dbapi_conn, conn_record):
     dbapi_conn.create_function("stem_porter", 1, stem_porter)
 
 
-def string_collector(rowData, value, col_name, headers):
-    index = get_colIndex_by_colName(col_name, headers)
-    rowData[index] = value
+def string_collector(rowData, headers, values, col_names):
+    indexes = []
+    for header in col_names:
+        if header in headers:
+            indexes.append(headers.index(header))
+    print(indexes)
+    # for index in indexes:
+    #     rowData[index] = '+'
+    for index, value in zip(indexes, values):
+        rowData[index] = value
     return rowData
+
+
+def calculations():
+    """
+    Последний шаг для заполнения строки
+    """
+    pass
 
 
 def route_by_columns(rowIndex, colIndex, rowData, headers):
@@ -454,27 +444,33 @@ def route_by_columns(rowIndex, colIndex, rowData, headers):
     применять определенный набор функций.
     :return: (upd_colIndex), (upd_rowData),
     """
+    upd_rowData = rowData
+
     # Получаем Имя колонки отредактированной ячейки
     col_name = get_colName_by_colIndex(colIndex, headers)
 
-    # Если редактировали значение в колонке 'НАИМЕНОВАНИЕ2',
-    upd_rowData = []
-    if col_name == 'НАИМЕНОВАНИЕ2':
-        # то получаем 'КОД ТНВД' и индекс колонки
-        print(col_name)
-        print(rowData)
-        upd_rowData = get_tnvd_code(colIndex, rowData, headers, 'КОД ТНВД', engine)
-        print(f'{upd_rowData}')
-    if col_name == 'ТМ':
+    # Если редактировали значение в колонке 'НАИМЕНОВАНИЕ2' или 'ТМ', то
+    if col_name == 'НАИМЕНОВАНИЕ2' or 'ТМ':
+        # Получаем значение из НАИМЕНОВАНИЕ2
+        naim_index = get_colIndex_by_colName('НАИМЕНОВАНИЕ2', headers)
+        naim_value = rowData[naim_index]
+        # Получаем значение из ТМ
+        tm_index = get_colIndex_by_colName('ТМ', headers)
+        tm_value = rowData[tm_index]
+
+        print(f'Редактирование в столбце: {col_name}')
+        print(f'Входящие значения строки: {rowData}\n')
+
+        upd_rowData = get_cert_info(engine, headers, rowData, naim_value, tm_value)
+    if col_name == 'КОЛ-ВО':
         rowData[0] = '+' + rowData[0]
         upd_rowData = rowData
-    else:
-        return rowData
 
-    upd_rowIndex = rowIndex
+    upd_rowIndex = rowIndex  # rowIndex вообще больше нигде не использую, кроме как посмотреть где редактирование было
     upd_colIndex = colIndex
-    print(f'Col: {upd_colIndex} | Row: {upd_rowIndex}')
-    print(f'{upd_rowData}')
+    print(f'\nСтолбец: {upd_colIndex} | Строка: {upd_rowIndex}')
+
+    print(f'Обновленные значения строки: {upd_rowData}')
     return upd_rowData
 
 
