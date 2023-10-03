@@ -6,18 +6,19 @@
 
 import os
 from flask import Flask, render_template, redirect, request, url_for, flash, jsonify, json
-from flask_sqlalchemy import SQLAlchemy
+# from flask_sqlalchemy import SQLAlchemy
 from flask_bootstrap import Bootstrap
 from flask_login import UserMixin, LoginManager, current_user, login_required, login_user, logout_user
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, create_engine, func, event
-from sqlalchemy.orm import DeclarativeBase, sessionmaker, relationship  # , Mapped, mapped_column
+# from sqlalchemy import Column, Integer, String, Float, ForeignKey, create_engine, func, event
+# from sqlalchemy.orm import DeclarativeBase, sessionmaker, relationship  # , Mapped, mapped_column
 # from sqlalchemy.ext.declarative import declarative_base
 
-import pandas as pd
+# import pandas as pd
 
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS, cross_origin
 import forms
+from models import db, basedir, engine, Certificates, Designations2, Designations1, TradeMarks, User
 # from flask_wtf import FlaskForm
 from utils import secret_key
 
@@ -25,8 +26,8 @@ from utils import secret_key
 ##########################################
 # init:
 ##########################################
-class Base(DeclarativeBase):
-    pass
+# class Base(DeclarativeBase):
+#     pass
 
 
 app = Flask(__name__)
@@ -35,10 +36,10 @@ CORS(app)
 
 app.secret_key = 'secret'
 
-basedir = os.path.abspath(os.path.dirname(__file__))
+# basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'db/main.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(model_class=Base)
+# db = SQLAlchemy(model_class=Base)
 # db = SQLAlchemy()
 # Base = declarative_base()
 # Base = db.Model
@@ -56,136 +57,136 @@ secret_key(app)
 login_manager.login_view = 'login'
 
 # Создание подключения к базе данных
-engine = create_engine('sqlite:///' + os.path.join(basedir, 'db/main.db'))
+# engine = create_engine('sqlite:///' + os.path.join(basedir, 'db/main.db'))
 
 
 ##########################################
 # models:
 ##########################################
 
-class Certificates(Base):
-    """
-    PARENT
-    CHILD_1: Designations2
-        Одна запись в Certificates может иметь несколько записей в Designations2.
-        Связана с моделью Certificates через внешний ключ cert_id.
-
-    CHILD_2: TradeMarks
-        Oдна запись в Certificates может иметь несколько записей в TradeMarks.
-        Связана с моделью Certificates через внешний ключ cert_id.
-    """
-    __tablename__ = 'certificates'
-    # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
-    # code: Mapped[str] = mapped_column(String, nullable=False)
-    # cert_name: Mapped[str] = mapped_column(String, nullable=False)
-    # start_date: Mapped[str] = mapped_column(String, nullable=False)
-    # exp_date: Mapped[str] = mapped_column(String, nullable=False)
-    # children_1: Mapped[List["TradeMarks"]] = relationship("TradeMarks", back_populates="parent")
-    # children_2: Mapped[List["Designations2"]] = relationship("Designations2", back_populates="parent")
-
-    id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
-    code = Column(String, nullable=False)
-    cert_name = Column(String, nullable=False)
-    start_date = Column(String, nullable=False)
-    exp_date = Column(String, nullable=False)
-    designations = relationship("Designations2", back_populates="certificate")
-    trademarks = relationship("TradeMarks", back_populates="certificate")
-
-
-class Designations2(Base):
-    """
-    CHILD_1
-    PARENT: Certificates
-    Связана с моделью Certificates через внешний ключ cert_id.
-    Одна запись в Designations2 может быть связана с одной записью в Certificates.
-    Однонаправленная связь - можно получить объект Certificates из объекта Designations2 (не наоборот).
-    Связь определена с помощью атрибута certificate, который указывает на объект Certificates, связанный с данной записью Designations2.
-    """
-    __tablename__ = 'designations_2'
-    # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
-    # cert_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'), nullable=False)
-    # designation: Mapped[str] = mapped_column(String, nullable=False)
-    # hscode: Mapped[str] = mapped_column(String, nullable=False)
-    # s_low: Mapped[float] = mapped_column(Float, nullable=False)
-    # s_high: Mapped[float] = mapped_column(Float)
-    # parent_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'))
-    # parent: Mapped["Certificates"] = relationship(back_populates="designations")
-
-    id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
-    cert_id = Column(Integer, ForeignKey('certificates.id'), nullable=False)
-    designation = Column(String, nullable=False)
-    hscode = Column(String, nullable=False)
-    s_low = Column(Float, nullable=False)
-    s_high = Column(Float, nullable=False)
-    certificate = relationship("Certificates", back_populates="designations")
-
-
-class TradeMarks(Base):
-    """
-    CHILD_2
-    PARENT: Certificates
-    Связана с моделью Certificates через внешний ключ cert_id.
-    Одна запись в TradeMarks может быть связана с одной записью в Certificates.
-    Однонаправленная связь - можно получить объект Certificates из объекта TradeMarks (не наоборот).
-    Связь определена с помощью атрибута certificate, который указывает на объект Certificates, связанный с данной записью TradeMarks.
-    """
-    __tablename__ = 'trade_marks'
-    # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
-    # cert_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'), nullable=False)
-    # trade_mark: Mapped[str] = mapped_column(String, nullable=False)
-    # manufacturer: Mapped[str] = mapped_column(String)
-    # category: Mapped[int] = mapped_column(Integer)
-    # parent_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'))
-    # parent: Mapped["Certificates"] = relationship(back_populates="trademarks")
-
-    id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
-    cert_id = Column(Integer, ForeignKey('certificates.id'), nullable=False)
-    trade_mark = Column(String, nullable=False)
-    manufacturer = Column(String)
-    category = Column(Integer)
-    certificate = relationship("Certificates", back_populates="trademarks")
-
-
-class Designations1(Base):
-    """
-    Модель Designations1 не имеет связей с другими моделями.
-    """
-    __tablename__ = 'designations_1'
-    # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
-    # hscode: Mapped[str] = mapped_column(String, nullable=False)
-    # designation: Mapped[str] = mapped_column(String, nullable=False)
-
-    id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
-    hscode = Column(String, nullable=False)
-    designation = Column(String, nullable=False)
-
-
-class User(UserMixin, db.Model):
-    __tablename__ = 'users'
-    # id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # name: Mapped[str] = mapped_column(String, index=True, unique=True)
-    # password_hash: Mapped[str] = mapped_column(String(255))
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(64), index=True, unique=True)
-    password_hash = db.Column(db.String(255))
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def verify_password(self, password):
-        return check_password_hash(self.password_hash, password)
-
-    @staticmethod
-    def register(name, password):
-        user = User(name=name)
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
-        # return user
-
-    def __repr__(self):
-        return '<User {0}>'.format(self.name)
+# class Certificates(Base):
+#     """
+#     PARENT
+#     CHILD_1: Designations2
+#         Одна запись в Certificates может иметь несколько записей в Designations2.
+#         Связана с моделью Certificates через внешний ключ cert_id.
+#
+#     CHILD_2: TradeMarks
+#         Oдна запись в Certificates может иметь несколько записей в TradeMarks.
+#         Связана с моделью Certificates через внешний ключ cert_id.
+#     """
+#     __tablename__ = 'certificates'
+#     # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+#     # code: Mapped[str] = mapped_column(String, nullable=False)
+#     # cert_name: Mapped[str] = mapped_column(String, nullable=False)
+#     # start_date: Mapped[str] = mapped_column(String, nullable=False)
+#     # exp_date: Mapped[str] = mapped_column(String, nullable=False)
+#     # children_1: Mapped[List["TradeMarks"]] = relationship("TradeMarks", back_populates="parent")
+#     # children_2: Mapped[List["Designations2"]] = relationship("Designations2", back_populates="parent")
+#
+#     id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+#     code = Column(String, nullable=False)
+#     cert_name = Column(String, nullable=False)
+#     start_date = Column(String, nullable=False)
+#     exp_date = Column(String, nullable=False)
+#     designations = relationship("Designations2", back_populates="certificate")
+#     trademarks = relationship("TradeMarks", back_populates="certificate")
+#
+#
+# class Designations2(Base):
+#     """
+#     CHILD_1
+#     PARENT: Certificates
+#     Связана с моделью Certificates через внешний ключ cert_id.
+#     Одна запись в Designations2 может быть связана с одной записью в Certificates.
+#     Однонаправленная связь - можно получить объект Certificates из объекта Designations2 (не наоборот).
+#     Связь определена с помощью атрибута certificate, который указывает на объект Certificates, связанный с данной записью Designations2.
+#     """
+#     __tablename__ = 'designations_2'
+#     # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+#     # cert_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'), nullable=False)
+#     # designation: Mapped[str] = mapped_column(String, nullable=False)
+#     # hscode: Mapped[str] = mapped_column(String, nullable=False)
+#     # s_low: Mapped[float] = mapped_column(Float, nullable=False)
+#     # s_high: Mapped[float] = mapped_column(Float)
+#     # parent_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'))
+#     # parent: Mapped["Certificates"] = relationship(back_populates="designations")
+#
+#     id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+#     cert_id = Column(Integer, ForeignKey('certificates.id'), nullable=False)
+#     designation = Column(String, nullable=False)
+#     hscode = Column(String, nullable=False)
+#     s_low = Column(Float, nullable=False)
+#     s_high = Column(Float, nullable=False)
+#     certificate = relationship("Certificates", back_populates="designations")
+#
+#
+# class TradeMarks(Base):
+#     """
+#     CHILD_2
+#     PARENT: Certificates
+#     Связана с моделью Certificates через внешний ключ cert_id.
+#     Одна запись в TradeMarks может быть связана с одной записью в Certificates.
+#     Однонаправленная связь - можно получить объект Certificates из объекта TradeMarks (не наоборот).
+#     Связь определена с помощью атрибута certificate, который указывает на объект Certificates, связанный с данной записью TradeMarks.
+#     """
+#     __tablename__ = 'trade_marks'
+#     # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+#     # cert_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'), nullable=False)
+#     # trade_mark: Mapped[str] = mapped_column(String, nullable=False)
+#     # manufacturer: Mapped[str] = mapped_column(String)
+#     # category: Mapped[int] = mapped_column(Integer)
+#     # parent_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'))
+#     # parent: Mapped["Certificates"] = relationship(back_populates="trademarks")
+#
+#     id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+#     cert_id = Column(Integer, ForeignKey('certificates.id'), nullable=False)
+#     trade_mark = Column(String, nullable=False)
+#     manufacturer = Column(String)
+#     category = Column(Integer)
+#     certificate = relationship("Certificates", back_populates="trademarks")
+#
+#
+# class Designations1(Base):
+#     """
+#     Модель Designations1 не имеет связей с другими моделями.
+#     """
+#     __tablename__ = 'designations_1'
+#     # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+#     # hscode: Mapped[str] = mapped_column(String, nullable=False)
+#     # designation: Mapped[str] = mapped_column(String, nullable=False)
+#
+#     id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+#     hscode = Column(String, nullable=False)
+#     designation = Column(String, nullable=False)
+#
+#
+# class User(UserMixin, db.Model):
+#     __tablename__ = 'users'
+#     # id: Mapped[int] = mapped_column(Integer, primary_key=True)
+#     # name: Mapped[str] = mapped_column(String, index=True, unique=True)
+#     # password_hash: Mapped[str] = mapped_column(String(255))
+#
+#     id = db.Column(db.Integer, primary_key=True)
+#     name = db.Column(db.String(64), index=True, unique=True)
+#     password_hash = db.Column(db.String(255))
+#
+#     def set_password(self, password):
+#         self.password_hash = generate_password_hash(password)
+#
+#     def verify_password(self, password):
+#         return check_password_hash(self.password_hash, password)
+#
+#     @staticmethod
+#     def register(name, password):
+#         user = User(name=name)
+#         user.set_password(password)
+#         db.session.add(user)
+#         db.session.commit()
+#         # return user
+#
+#     def __repr__(self):
+#         return '<User {0}>'.format(self.name)
 
 
 with app.app_context():
@@ -212,34 +213,34 @@ def home():
         return redirect(url_for('login'))
 
 
-@app.route('/upload', methods=['GET', 'POST'])
-@login_required
-def upload():
-    if request.method == 'POST':
-        file = request.files['file']
-        if file:
-            df = pd.read_excel(file)  # Чтение данных из загруженного файла xlsx
-            df = create_result_df(df)  # Преобразуем входящую таблицу в result таблицу
-
-            # Применение функций чистки на наличие множественных/левых/правых пробелов
-            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].apply(clean_spaces)
-            df['ТМ'] = df['ТМ'].apply(clean_spaces)
-
-            # Применение функций чистки на наличие латиницы к данным столбцов
-            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].apply(clean_lat_symbols)
-            # Применение функций чистки на наличие кириллицы к данным столбцов
-            df['ТМ'] = df['ТМ'].apply(clean_cyr_symbols)
-
-            headers = df.columns.tolist()  # Заголовки таблицы входящего файла
-            data = df.values.tolist()  # Данные таблицы входящего файла
-
-            # return {'headers': headers, 'data': data}
-            return render_template('edit.html', headers=headers, data=data)
-            # return redirect(url_for('edit2', headers=headers, data=data))
-    else:
-        # обработка GET запроса
-        # возвращение страницы с формой загрузки файла
-        return render_template('edit.html')
+# @app.route('/upload', methods=['GET', 'POST'])
+# @login_required
+# def upload():
+#     if request.method == 'POST':
+#         file = request.files['file']
+#         if file:
+#             df = pd.read_excel(file)  # Чтение данных из загруженного файла xlsx
+#             df = create_result_df(df)  # Преобразуем входящую таблицу в result таблицу
+#
+#             # Применение функций чистки на наличие множественных/левых/правых пробелов
+#             df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].apply(clean_spaces)
+#             df['ТМ'] = df['ТМ'].apply(clean_spaces)
+#
+#             # Применение функций чистки на наличие латиницы к данным столбцов
+#             df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].apply(clean_lat_symbols)
+#             # Применение функций чистки на наличие кириллицы к данным столбцов
+#             df['ТМ'] = df['ТМ'].apply(clean_cyr_symbols)
+#
+#             headers = df.columns.tolist()  # Заголовки таблицы входящего файла
+#             data = df.values.tolist()  # Данные таблицы входящего файла
+#
+#             # return {'headers': headers, 'data': data}
+#             return render_template('edit.html', headers=headers, data=data)
+#             # return redirect(url_for('edit2', headers=headers, data=data))
+#     else:
+#         # обработка GET запроса
+#         # возвращение страницы с формой загрузки файла
+#         return render_template('edit.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -437,9 +438,9 @@ def get_tnvd_code(colIndex, rowData, headers, column_name, engine):
     return upd_rowData
 
 
-@event.listens_for(engine, "connect")
-def sqlite_connect(dbapi_conn, conn_record):
-    dbapi_conn.create_function("stem_porter", 1, stem_porter)
+# @event.listens_for(engine, "connect")
+# def sqlite_connect(dbapi_conn, conn_record):
+#     dbapi_conn.create_function("stem_porter", 1, stem_porter)
 
 
 def string_collector(rowData, value, col_name, headers):
