@@ -8,10 +8,13 @@ import os
 from flask import Flask, render_template, redirect, request, url_for, flash, jsonify, json
 from flask_sqlalchemy import SQLAlchemy
 from flask_bootstrap import Bootstrap
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
-from sqlalchemy import Integer, String, Float, ForeignKey, create_engine, func
-import pandas as pd
 from flask_login import UserMixin, LoginManager, current_user, login_required, login_user, logout_user
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, create_engine, func, event
+from sqlalchemy.orm import DeclarativeBase, sessionmaker, relationship  # , Mapped, mapped_column
+# from sqlalchemy.ext.declarative import declarative_base
+
+import pandas as pd
+
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS, cross_origin
 import forms
@@ -22,103 +25,7 @@ from utils import secret_key
 ##########################################
 # init:
 ##########################################
-basedir = os.path.abspath(os.path.dirname(__file__))
-
-# Временные тестовые данные (в дальнейшем удалить)
-tnvd_names = [
-    {"names": "БАЛЬЗАМ ДЛЯ ГУБ", "tnvd": 3304990000},
-    {"names": "ВВ КРЕМ", "tnvd": 3304990000},
-    {"names": "СС КРЕМ", "tnvd": 3304990000},
-    {"names": "ВОДА ОЧИЩАЮЩАЯ", "tnvd": 3304990000},
-    {"names": "ГЕЛЬ ДЛЯ ДУША", "tnvd": 3401300000},
-    {"names": "ГЕЛЬ ДЛЯ ТЕЛА", "tnvd": 3304990000},
-    {"names": "ГЕЛЬ ДЛЯ УМЫВАНИЯ", "tnvd": 3401300000},
-    {"names": "ГИДРОФИЛЬНОЕ МАСЛО", "tnvd": 3304990000},
-    {"names": "ЗУБНАЯ ПАСТА", "tnvd": 3306100000},
-    {"names": "КАРАНДАШ ДЛЯ ГЛАЗ", "tnvd": 3304200000},
-    {"names": "КАРАНДАШ ДЛЯ ГУБ", "tnvd": 3304100000},
-    {"names": "КОНДИЦИОНЕР ДЛЯ ВОЛОС", "tnvd": 3305900009},
-    {"names": "КРЕМ ДЛЯ ГЛАЗ", "tnvd": 3304990000},
-    {"names": "КРЕМ ДЛЯ ЛИЦА", "tnvd": 3304990000},
-    {"names": "КРЕМ ДЛЯ РУК", "tnvd": 3304990000},
-    {"names": "КУШОН", "tnvd": 3304910000},
-    {"names": "ЛОСЬОН ДЛЯ ЛИЦА", "tnvd": 3304990000},
-    {"names": "ЛОСЬОН ДЛЯ ТЕЛА", "tnvd": 3304990000},
-    {"names": "МАСКА ГИДРОГЕЛЕВАЯ ДЛЯ ЛИЦА", "tnvd": 3304990000},
-    {"names": "МАСКА ДЛЯ ВОЛОС", "tnvd": 3305900009},
-    {"names": "МАСКА ДЛЯ ЛИЦА", "tnvd": 3304990000},
-    {"names": "МАСКА ДЛЯ НОГ", "tnvd": 3304990000},
-    {"names": "МАСКА ДЛЯ РУК", "tnvd": 3304990000},
-    {"names": "МАСКА САЛФЕТКА", "tnvd": 3307900008},
-    {"names": "МАСКА-САЛФЕТКА ДЛЯ ЛИЦА", "tnvd": 3307900008},
-    {"names": "МАСЛО ГИДРОФИЛЬНОЕ", "tnvd": 3304990000},
-    {"names": "МАСЛО ДЛЯ ТЕЛА", "tnvd": 3304990000},
-    {"names": "МИСТ ДЛЯ ЛИЦА", "tnvd": 3304990000},
-    {"names": "МЫЛО", "tnvd": 3401190000},
-    {"names": "НАБОР", "tnvd": 3304990000},
-    {"names": "НАБОР ДЛЯ ВОЛОС", "tnvd": 3305900009},
-    {"names": "НАБОРЫ", "tnvd": 3304990000},
-    {"names": "НОЧНАЯ МАСКА ДЛЯ ЛИЦА", "tnvd": 3304990000},
-    {"names": "ОЧИЩАЮЩАЯ ВОДА", "tnvd": 3401300000},
-    {"names": "ПАСТА ЗУБНАЯ", "tnvd": 3306100000},
-    {"names": "ПАТЧИ", "tnvd": 3304990000},
-    {"names": "ПАТЧИ ДЛЯ ГЛАЗ", "tnvd": 3304990000},
-    {"names": "ПЕНКА ДЛЯ УМЫВАНИЯ", "tnvd": 3401300000},
-    {"names": "ПЕНКА-ГЕЛЬ ДЛЯ УМЫВАНИЯ", "tnvd": 3401300000},
-    {"names": "ПЕНКА-ПОРОШОК ДЛЯ УМЫВАНИЯ", "tnvd": 3401300000},
-    {"names": "ПЕЧЕНЬЕ", "tnvd": 1905311500},
-    {"names": "ПЛАСТЫРЬ", "tnvd": 3307900008},
-    {"names": "ПОДВОДКА ДЛЯ ГЛАЗ", "tnvd": 3304200000},
-    {"names": "ПОМАДА", "tnvd": 3304100000},
-    {"names": "ПРАЙМЕР", "tnvd": 3304990000},
-    {"names": "ПУДРА", "tnvd": 3304910000},
-    {"names": "РОЛИКОВЫЙ МЕХАНИЧЕСКИЙ МАССАЖЕР", "tnvd": 9019109009},
-    {"names": "СКРАБ", "tnvd": 3304990000},
-    {"names": "СОЛЬ ДЛЯ ВАННЫ", "tnvd": 3307300000},
-    {"names": "СПРЕЙ ДЛЯ ВОЛОС", "tnvd": 3304990000},
-    {"names": "СРЕДСТВО ДЛЯ РЕСНИЦ", "tnvd": 3305900009},
-    {"names": "СРЕДСТВО ДЛЯ СНЯТИЯ МАКИЯЖА", "tnvd": 3304990000},
-    {"names": "СУТИНГ ГЕЛЬ", "tnvd": 3304990000},
-    {"names": "СЫВОРОТКА ДЛЯ ВОЛОС", "tnvd": 3304990000},
-    {"names": "СЫВОРОТКА ДЛЯ ЛИЦА", "tnvd": 3304990000},
-    {"names": "СЫВОРОТКА-ЭССЕНЦИИЯ ДЛЯ ЛИЦА", "tnvd": 3304990000},
-    {"names": "ТЕЙПЫ", "tnvd": 3307900008},
-    {"names": "ТИНТ ДЛЯ ГУБ", "tnvd": 3304100000},
-    {"names": "ТОНАЛЬНЫЙ КРЕМ", "tnvd": 3304990000},
-    {"names": "ТОНЕР ДЛЯ ЛИЦА", "tnvd": 3304990000},
-    {"names": "ТУАЛЕТНОЕ МЫЛО", "tnvd": 3401110009},
-    {"names": "ТУШЬ", "tnvd": 3304200000},
-    {"names": "ТУШЬ ДЛЯ РЕСНИЦ", "tnvd": 3304200000},
-    {"names": "ШАМПУНЬ", "tnvd": 3305100000},
-    {"names": "ШАМПУНЬ ДЛЯ ВОЛОС", "tnvd": 3305100000}
-    ]
-
-tnvd_description = [
-    {"number": 3304990000, "description": "КОСМЕТИЧЕСКОЕ СРЕДСТВО ДЛЯ УХОДА ЗА ЛИЦОМ И ТЕЛОМ, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
-    {"number": 3307900008, "description": "КОСМЕТИЧЕСКОЕ СРЕДСТВО НА ОСНОВЕ ИЗ НЕТКАНОГО МАТЕРИАЛА ДЛЯ УХОДА ЗА КОЖЕЙ ЛИЦА, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
-    {"number": 3401300000, "description": "МОЮЩЕЕ СТРЕДСТВО ДЛЯ ЛИЧНОЙ ГИГИЕНЫ, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
-    {"number": 3304200000, "description": "КОСМЕТИЧЕСКОЕ СРЕДСТВО ДЛЯ МАКИЯЖА ГЛАЗ, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
-    {"number": 3305100000, "description": "КОСМЕТИЧЕСКОЕ СТРЕДСТВО ДЛЯ УХОДА ЗА ВОЛОСАМИ НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
-    {"number": 3305900009, "description": "КОСМЕТИЧЕСКОЕ СТРЕДСТВО ДЛЯ УХОДА ЗА ВОЛОСАМИ НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
-    {"number": 3306100000, "description": "СРЕДСТВО ДЛЯ ГИГИЕНЫ ПОЛОСТИ РТА НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ СОДЕРЖАЩЕЕ ФТОРИДЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ОТБЕЛИВАНИЯ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
-    {"number": 9019109009, "description": "РОЛИКОВЫЙ МЕХАНИЧЕСКИЙ МАССАЖЕР ДЛЯ СНЯТИЯ УСТАЛОСТИ."},
-    {"number": 3304100000, "description": "КОСМЕТИЧЕСКОЕ СРЕДСТВО ДЕКОРАТИВНОЕ ДЛЯ МАКИЯЖА ЛИЦА, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ СОДЕРЖАЩЕЕ ФТОРИДЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ОТБЕЛИВАНИЯ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
-    {"number": 3304910000, "description": "КОСМЕТИЧЕСКОЕ СРЕДСТВО ДЛЯ МАКИЯЖА ЛИЦА, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
-    {"number": 3401190000, "description": "МОЮЩЕЕ СТРЕДСТВО ДЛЯ ЛИЧНОЙ ГИГИЕНЫ В БРУСКАХ, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
-    {"number": 3924900009, "description": "ИЗДЕЛИЯ ИЗ ПОЛИМЕРНОГО МАТЕРИАЛА ДЛЯ ДОМАШНЕГО ОБИХОДА."},
-    {"number": 6304191000, "description": "ИЗДЕЛИЕ ДЕКОРАТИВНОЕ ГОТОВОЕ ИЗ ТЕКСТИЛЬНЫХ МАТЕРИАЛОВ - ПОКРЫВАЛА ПОСТЕЛЬНЫЕ, ИЗГОТОВЛЕННЫЕ ИЗ ХЛОПЧАТОБУМАЖНЫХ ТКАНЕЙ."},
-    {"number": 1905311100, "description": "СЛАДКОЕ СУХОЕ ПЕЧЕНЬЕ ПОЛНОСТЬЮ ИЛИ ЧАСТИЧНО ПОКРЫТОЕ ШОКОЛАДОМ СОДЕРЖАЩИМИ КАКАО, В ПЕРВИЧНЫХ УПАКОВКАХ НЕТТО-МАССОЙ НЕ БОЛЕЕ 85 Г."},
-    {"number": 1905311900, "description": "СЛАДКОЕ СУХОЕ ПЕЧЕНЬЕ ПОЛНОСТЬЮ ИЛИ ЧАСТИЧНО ПОКРЫТОЕ ШОКОЛАДОМ СОДЕРЖАЩИМИ КАКАО, В ПЕРВИЧНЫХ УПАКОВКАХ НЕТТО-МАССОЙ БОЛЕЕ 85 Г."},
-    {"number": 3402500000, "description": "МОЮЩИЕ И ЧИСТЯЩИЕ СРЕДСТВА, ДЛЯ ХОЗ/БЫТОВЫХ НУЖД, РАСФАСОВАННЫЕ ДЛЯ РОЗНИЧНОЙ ПРОДАЖИ."},
-    {"number": 9603210000, "description": "ЩЕТКИ ЗУБНЫЕ ДЛЯ ВЗРОСЛЫХ, ИЗГОТОВЛЕНЫ ИЗ ПОЛИМЕРНЫХ МАТЕРИАЛОВ, СО ЩЕТИНОЙ ИЗ СИНТЕТИЧЕСКОГО ВОРСА."},
-    {"number": 3307300000, "description": "СОЛЬ ДЛЯ ВАНН, НЕ СОДЕРЖАЩЕЕ СПИРТ, НАНОМАТЕРИАЛЫ, НЕ ПРЕДНАЗНАЧЕННОЕ ДЛЯ ДЕТЕЙ. КЛАСС ТОВАРА НЕ ПОИМЕНОВАН."},
-    {"number": 9404400009, "description": "ПОКРЫВАЛА ДЛЯ КРОВАТЕЙ ПРОЧИЕ:"}
-    ]
-
-tnvd_info = pd.DataFrame(tnvd_description)  # <---не используется пока нигде
-
-
-class Base(DeclarativeBase):  # На потом
+class Base(DeclarativeBase):
     pass
 
 
@@ -127,14 +34,19 @@ CORS(app)
 # CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
 app.secret_key = 'secret'
+
+basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'db/main.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# db = SQLAlchemy(model_class=Base)
-db = SQLAlchemy()
+db = SQLAlchemy(model_class=Base)
+# db = SQLAlchemy()
+# Base = declarative_base()
+# Base = db.Model
+
 bootstrap = Bootstrap()
 login_manager = LoginManager()
 
-# initialize extensions
+# Initialize extensions
 bootstrap.init_app(app)
 db.init_app(app)
 login_manager.init_app(app)
@@ -143,84 +55,109 @@ secret_key(app)
 
 login_manager.login_view = 'login'
 
-
-
-# # Создание подключения к базе данных
-# engine = create_engine('your_database_url')
-#
-# # Как идея
-# get_tnvd_code(colIndex, rowData, headers, column_name, engine)
+# Создание подключения к базе данных
+engine = create_engine('sqlite:///' + os.path.join(basedir, 'db/main.db'))
 
 
 ##########################################
 # models:
 ##########################################
 
-#######
-# NEW #
-#######
+class Certificates(Base):
+    """
+    PARENT
+    CHILD_1: Designations2
+        Одна запись в Certificates может иметь несколько записей в Designations2.
+        Связана с моделью Certificates через внешний ключ cert_id.
 
-
-class Certificates(db.Model):
+    CHILD_2: TradeMarks
+        Oдна запись в Certificates может иметь несколько записей в TradeMarks.
+        Связана с моделью Certificates через внешний ключ cert_id.
+    """
     __tablename__ = 'certificates'
-    id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True)
-    code: Mapped[str] = mapped_column(String, nullable=False)
-    cert_name: Mapped[str] = mapped_column(String, nullable=False)
-    start_date: Mapped[str] = mapped_column(String, nullable=False)
-    exp_date: Mapped[str] = mapped_column(String, nullable=False)
+    # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+    # code: Mapped[str] = mapped_column(String, nullable=False)
+    # cert_name: Mapped[str] = mapped_column(String, nullable=False)
+    # start_date: Mapped[str] = mapped_column(String, nullable=False)
+    # exp_date: Mapped[str] = mapped_column(String, nullable=False)
+    # children_1: Mapped[List["TradeMarks"]] = relationship("TradeMarks", back_populates="parent")
+    # children_2: Mapped[List["Designations2"]] = relationship("Designations2", back_populates="parent")
+
+    id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+    code = Column(String, nullable=False)
+    cert_name = Column(String, nullable=False)
+    start_date = Column(String, nullable=False)
+    exp_date = Column(String, nullable=False)
+    designations = relationship("Designations2", back_populates="certificate")
+    trademarks = relationship("TradeMarks", back_populates="certificate")
 
 
-class TradeMarks(db.Model):
-    __tablename__ = 'trade_marks'
-    cert_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'), nullable=False)
-    trade_mark: Mapped[str] = mapped_column(String, nullable=False)
-    manufacturer: Mapped[str] = mapped_column(String)
-    category: Mapped[int] = mapped_column(Integer(length=1))
-
-
-class Designations2(db.Model):
+class Designations2(Base):
+    """
+    CHILD_1
+    PARENT: Certificates
+    Связана с моделью Certificates через внешний ключ cert_id.
+    Одна запись в Designations2 может быть связана с одной записью в Certificates.
+    Однонаправленная связь - можно получить объект Certificates из объекта Designations2 (не наоборот).
+    Связь определена с помощью атрибута certificate, который указывает на объект Certificates, связанный с данной записью Designations2.
+    """
     __tablename__ = 'designations_2'
-    cert_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'), nullable=False)
-    designation: Mapped[str] = mapped_column(String, nullable=False)
-    hscode: Mapped[str] = mapped_column(String, nullable=False)
-    s_low: Mapped[float] = mapped_column(Float, nullable=False)
-    s_high: Mapped[float] = mapped_column(Float)
+    # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+    # cert_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'), nullable=False)
+    # designation: Mapped[str] = mapped_column(String, nullable=False)
+    # hscode: Mapped[str] = mapped_column(String, nullable=False)
+    # s_low: Mapped[float] = mapped_column(Float, nullable=False)
+    # s_high: Mapped[float] = mapped_column(Float)
+    # parent_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'))
+    # parent: Mapped["Certificates"] = relationship(back_populates="designations")
+
+    id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+    cert_id = Column(Integer, ForeignKey('certificates.id'), nullable=False)
+    designation = Column(String, nullable=False)
+    hscode = Column(String, nullable=False)
+    s_low = Column(Float, nullable=False)
+    s_high = Column(Float, nullable=False)
+    certificate = relationship("Certificates", back_populates="designations")
 
 
-class Designations1(db.Model):
+class TradeMarks(Base):
+    """
+    CHILD_2
+    PARENT: Certificates
+    Связана с моделью Certificates через внешний ключ cert_id.
+    Одна запись в TradeMarks может быть связана с одной записью в Certificates.
+    Однонаправленная связь - можно получить объект Certificates из объекта TradeMarks (не наоборот).
+    Связь определена с помощью атрибута certificate, который указывает на объект Certificates, связанный с данной записью TradeMarks.
+    """
+    __tablename__ = 'trade_marks'
+    # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+    # cert_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'), nullable=False)
+    # trade_mark: Mapped[str] = mapped_column(String, nullable=False)
+    # manufacturer: Mapped[str] = mapped_column(String)
+    # category: Mapped[int] = mapped_column(Integer)
+    # parent_id: Mapped[int] = mapped_column(Integer, ForeignKey('certificates.id'))
+    # parent: Mapped["Certificates"] = relationship(back_populates="trademarks")
+
+    id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+    cert_id = Column(Integer, ForeignKey('certificates.id'), nullable=False)
+    trade_mark = Column(String, nullable=False)
+    manufacturer = Column(String)
+    category = Column(Integer)
+    certificate = relationship("Certificates", back_populates="trademarks")
+
+
+class Designations1(Base):
+    """
+    Модель Designations1 не имеет связей с другими моделями.
+    """
     __tablename__ = 'designations_1'
-    hscode: Mapped[str] = mapped_column(String, nullable=False)
-    designation: Mapped[str] = mapped_column(String, nullable=False)
+    # id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+    # hscode: Mapped[str] = mapped_column(String, nullable=False)
+    # designation: Mapped[str] = mapped_column(String, nullable=False)
 
-
-#######
-# OLD #
-#######
-
-
-class TNVDName(db.Model):
-    __tablename__ = 'tnvd_names'
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    tnvd: Mapped[str] = mapped_column(String, nullable=False)
-    low: Mapped[str] = mapped_column(Float)
-    high: Mapped[str] = mapped_column(Float)
-
-
-class TNVDDescription(db.Model):
-    __tablename__ = 'tnvd_description'
-    # number: Mapped[int] = mapped_column(Integer, nullable=False)
-    # description: Mapped[str] = mapped_column(String, nullable=False)
-    number = db.Column(db.Integer, primary_key=True, nullable=False)
-    description = db.Column(db.String, nullable=False)
-
-
-class BrandCategories(db.Model):
-    __tablename__ = 'brand_categories'
-    # cheapest: Mapped[str] = mapped_column(String)
-    # premium: Mapped[str] = mapped_column(String)
-    cheapest = db.Column(db.String, primary_key=True)
-    premium = db.Column(db.String)
+    id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
+    hscode = Column(String, nullable=False)
+    designation = Column(String, nullable=False)
 
 
 class User(UserMixin, db.Model):
@@ -228,6 +165,7 @@ class User(UserMixin, db.Model):
     # id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # name: Mapped[str] = mapped_column(String, index=True, unique=True)
     # password_hash: Mapped[str] = mapped_column(String(255))
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), index=True, unique=True)
     password_hash = db.Column(db.String(255))
@@ -267,8 +205,8 @@ def load_user(user_id):
 @login_required
 def home():
     if request.method == 'GET':
-        names = db.session.execute(db.select(TNVDName).order_by(TNVDName.id)).scalars()
-        print(*names)
+        # names = db.session.execute(db.select(TNVDName).order_by(TNVDName.id)).scalars()
+        # print(*names)
         return render_template('home.html', current_user=current_user)
     else:
         return redirect(url_for('login'))
@@ -447,14 +385,15 @@ def save():
 #             break
 #     updated_colIndex = get_colIndex_by_colName(column_name)
 #     return tnvd_code, updated_colIndex
-#
-#
-def get_tnvd_code(colIndex, rowData, headers, column_name):
+
+
+def get_tnvd_code(colIndex, rowData, headers, column_name, engine):
     # Очистка cellData с помощью функции stem_porter
     cellData = rowData[colIndex]
-    cleaned_cellData = stem_porter(cellData)
-    print(cleaned_cellData)
-    upd_rowData = []
+    stem_cellData = stem_porter(cellData)
+    print(f'stem_cellData = {stem_cellData}')
+
+    upd_rowData = rowData
 
     # Создание сессии
     Session = sessionmaker(bind=engine)
@@ -462,24 +401,45 @@ def get_tnvd_code(colIndex, rowData, headers, column_name):
 
     # Применение функции stem_porter к каждому значению столбца designation
     cleaned_designation = func.stem_porter(Designations2.designation)
+    print()
+
+    # Поиск записей в таблице Designations2, у которых значение поля designation после применения функции stem_porter совпадает с очищенным значением cellData
+    matching_cert_ids = session.query(Designations2.cert_id).filter(cleaned_designation == stem_cellData).distinct().all()
+
+    # Вывод найденных значений cert_id в консоль
+    for cert_id in matching_cert_ids:
+        print(cert_id[0])
+
+
+    # designations_2_data = db.session.execute(db.select(Designations2).order_by(Designations2.hscode)).scalars()
+    # for value in designations_2_data:
+    #     print("{:<5} {:<3} {:<55} {:<11} {:<5} {:<5}".format(value.id, value.cert_id, value.designation, value.hscode, value.s_low, value.s_high))
+    #     # print(f'{value.id}\t{value.cert_id}\t{value.designation}\t{value.hscode}\t{value.s_low}\t{value.s_high}')
+
 
     # Получение всех записей из таблицы "designations_2" с совпадающим значением "designation"
     # matching_designations = session.query(Designations2).filter(Designations2.designation == cleaned_cellData).all()
-    matching_designations = session.query(Designations2).filter(cleaned_designation == cleaned_cellData).all()
+    # matching_designations = session.query(Designations2).filter(cleaned_designation == cleaned_cellData).all()
+    # matching_designations = session.query(Designations2).filter(func.stem_porter(Designations2.designation) == cleaned_cellData).all()
 
     # Итерация по совпавшим записям и вывод значений
-    for designation in matching_designations:
-        certificates_id = designation.cert_id
-        designations_2_id = designation.cert_id
-        hscode = designation.hscode
-        print(f"Совпавшее значение id из таблицы certificates: {certificates_id}")
-        print(f"Значение cert_id из таблицы designations_2: {designations_2_id}")
-        print(f"Значение hscode из таблицы designations_2: {hscode}")
-        upd_rowData = string_collector(rowData, hscode, column_name, headers)
+    # for designation in matching_designations:
+    #     certificates_id = designation.cert_id
+    #     designations_2_id = designation.cert_id
+    #     hscode = designation.hscode
+    #     print(f"Совпавшее значение id из таблицы certificates: {certificates_id}")
+    #     print(f"Значение cert_id из таблицы designations_2: {designations_2_id}")
+    #     print(f"Значение hscode из таблицы designations_2: {hscode}")
+    #     upd_rowData = string_collector(rowData, hscode, column_name, headers)
 
     # Закрытие сессии
     session.close()
     return upd_rowData
+
+
+@event.listens_for(engine, "connect")
+def sqlite_connect(dbapi_conn, conn_record):
+    dbapi_conn.create_function("stem_porter", 1, stem_porter)
 
 
 def string_collector(rowData, value, col_name, headers):
@@ -503,7 +463,7 @@ def route_by_columns(rowIndex, colIndex, rowData, headers):
         # то получаем 'КОД ТНВД' и индекс колонки
         print(col_name)
         print(rowData)
-        upd_rowData = get_tnvd_code(colIndex, rowData, headers, 'КОД ТНВД')
+        upd_rowData = get_tnvd_code(colIndex, rowData, headers, 'КОД ТНВД', engine)
         print(f'{upd_rowData}')
     if col_name == 'ТМ':
         rowData[0] = '+' + rowData[0]
@@ -602,6 +562,7 @@ def stem_porter(data):
         """
     cleaned_data = data.lower()
     return cleaned_data
+
 
 
 
