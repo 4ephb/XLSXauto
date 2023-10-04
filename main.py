@@ -19,7 +19,7 @@ from flask_cors import CORS, cross_origin
 import forms
 # from flask_wtf import FlaskForm
 from utils import secret_key
-
+import random
 
 ##########################################
 # init:
@@ -355,7 +355,8 @@ def get_cert_info(engine, headers, rowData, naim_value, tm_value):
     stem_trademarks = func.stem_porter(TradeMarks.trade_mark)
 
     # Ну это алхимия)))
-    matching_records = session.query(Designations2.designation,
+    matching_records = session.query(Designations1.designation,
+                                     Designations2.designation,
                                      TradeMarks.manufacturer,
                                      TradeMarks.trade_mark,
                                      Designations2.hscode,
@@ -367,7 +368,8 @@ def get_cert_info(engine, headers, rowData, naim_value, tm_value):
                                      Certificates.exp_date,
                                      TradeMarks.category).join(
         TradeMarks, Designations2.cert_id == TradeMarks.cert_id).join(
-        Certificates, Designations2.cert_id == Certificates.id).filter(
+        Certificates, Designations2.cert_id == Certificates.id).join(
+        Designations1, Designations1.hscode == Designations2.hscode).filter(
         stem_designation == stem_naim_value,
         stem_trademarks == stem_tm_value).distinct().all()
 
@@ -377,6 +379,7 @@ def get_cert_info(engine, headers, rowData, naim_value, tm_value):
             print(f'{record}\n')
     else:
         print('Не найдено совпадающих записей!')
+        return rowData
 
     # Получаем правильный $/КГ в зависимости от TradeMarks.category
     matching_records = get_coefficient(matching_records)
@@ -384,10 +387,10 @@ def get_cert_info(engine, headers, rowData, naim_value, tm_value):
     # Вывод отсортированных значений в консоль
     if len(matching_records) > 0:
         for record in matching_records:
-            print(f'{record}\n')
+            print(f'{record} ')
 
     # Заголовки таблицы в которых необходимо заменить полученные значения
-    data_headers = ['НАИМЕНОВАНИЕ2','ИЗГОТОВИТЕЛЬ','ТМ','КОД ТНВД','$/КГ','КОД №1','СЕРТ №1','НАЧАЛО №1','КОНЕЦ №1']
+    data_headers = ['НАИМЕНОВАНИЕ1', 'НАИМЕНОВАНИЕ2', 'ИЗГОТОВИТЕЛЬ', 'ТМ', 'КОД ТНВД', '$/КГ', 'КОД №1', 'СЕРТ №1', 'НАЧАЛО №1', 'КОНЕЦ №1']
     # Подставляем значения в правильное место наполняемой строки
     upd_rowData = string_collector(rowData, headers, matching_records, data_headers)
 
@@ -405,10 +408,10 @@ def get_cert_info(engine, headers, rowData, naim_value, tm_value):
 def get_coefficient(matching_records):
     new_records = []
     for record in matching_records:
-        if record[10] == 0:
-            new_record = record[:5] + record[6:10]
+        if record[11] == 0:
+            new_record = record[:6] + record[7:11]
         else:
-            new_record = record[:4] + record[5:10]
+            new_record = record[:5] + record[6:11]
         new_records.append(new_record)
     return new_records[0]
 
@@ -431,18 +434,54 @@ def string_collector(rowData, headers, values, col_names):
     return rowData
 
 
-def calculations():
+def calculations(headers, rowData, quantity_value, gross_value, skg_value):
     """
     Последний шаг для заполнения строки
+    :return: upd_rowData
     """
-    pass
+    quantity_value = int(quantity_value)
+    gross_value = float(gross_value.replace(',', '.'))
+    if skg_value:
+        skg_value = float(skg_value.replace(',', '.'))
+    else:
+        return rowData
+    # print(f'\n{quantity_value} {type(quantity_value)}')
+    # print(f'{gross_value} {type(gross_value)}')
+    # print(f'{skg_value} {type(skg_value)}')
+    random.seed(42)
+    net_value = gross_value * random.uniform(0.891111111111, 0.911111111111)
+    cost = net_value * skg_value
+    unit_weight = net_value / quantity_value
+    digits = [quantity_value, round(unit_weight, 2), round(gross_value, 2), round(net_value, 2), round(skg_value, 2), round(cost, 2)]
+    print(f'\n{digits}')
+    # Заголовки таблицы в которых необходимо заменить полученные значения
+    data_headers = ['КОЛ-ВО', 'ВЕС ШТ', 'БР', 'НТ', '$/КГ', 'ЦЕНА']
+    # Подставляем значения в правильное место наполняемой строки
+    upd_rowData = string_collector(rowData, headers, digits, data_headers)
+    return upd_rowData
+
+
+
+def autofill(headers, rowData):
+    '''
+    Значения по-умолчанию, которые заполняются автоматически
+    '''
+    code = 796
+    measure_units = 'шт'
+    autofill_data = [code, measure_units]
+    # Заголовки таблицы в которых необходимо заменить полученные значения
+    data_headers = ['КОД', 'НАИМ']
+    # Подставляем значения в правильное место наполняемой строки
+    upd_rowData = string_collector(rowData, headers, autofill_data, data_headers)
+
+    return upd_rowData
 
 
 def route_by_columns(rowIndex, colIndex, rowData, headers):
     """
     В зависимости от имени редактируемой колонки,
     применять определенный набор функций.
-    :return: (upd_colIndex), (upd_rowData),
+    :return: upd_rowData
     """
     upd_rowData = rowData
 
@@ -457,14 +496,29 @@ def route_by_columns(rowIndex, colIndex, rowData, headers):
         # Получаем значение из ТМ
         tm_index = get_colIndex_by_colName('ТМ', headers)
         tm_value = rowData[tm_index]
+        # Получаем значение из КОЛ-ВО
+        quantity_index = get_colIndex_by_colName('КОЛ-ВО', headers)
+        quantity_value = rowData[quantity_index]
+        # Получаем значение из БР
+        gross_index = get_colIndex_by_colName('БР', headers)
+        gross_value = rowData[gross_index]
 
         print(f'Редактирование в столбце: {col_name}')
         print(f'Входящие значения строки: {rowData}\n')
 
         upd_rowData = get_cert_info(engine, headers, rowData, naim_value, tm_value)
+
+        # Получаем значение из $/КГ
+        skg_index = get_colIndex_by_colName('$/КГ', headers)
+        skg_value = rowData[skg_index]
+
+        upd_rowData = calculations(headers, upd_rowData, quantity_value, gross_value, skg_value)
+        upd_rowData = autofill(headers, upd_rowData)
     if col_name == 'КОЛ-ВО':
-        rowData[0] = '+' + rowData[0]
+        # rowData[0] = '+' + rowData[0]
         upd_rowData = rowData
+    if col_name == 'КОД ТНВД':
+        return upd_rowData
 
     upd_rowIndex = rowIndex  # rowIndex вообще больше нигде не использую, кроме как посмотреть где редактирование было
     upd_colIndex = colIndex
@@ -558,10 +612,10 @@ def stem_porter(data):
         """
     cleaned_data = data.lower()
     return cleaned_data
-
-
-
-
-
-if __name__ == '__main__':
-    app.run()
+#
+#
+#
+#
+#
+# if __name__ == '__main__':
+#     app.run()
