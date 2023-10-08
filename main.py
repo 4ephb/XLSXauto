@@ -466,11 +466,14 @@ def autofill(headers, rowData):
     '''
     Значения по-умолчанию, которые заполняются автоматически
     '''
+    spt = 'КОРЕЯ'
     code = 796
     measure_units = 'шт'
-    autofill_data = [code, measure_units]
+    avaible = '1'
+    kod_up = '4D'
+    autofill_data = [spt, code, measure_units, avaible, kod_up]
     # Заголовки таблицы в которых необходимо заменить полученные значения
-    data_headers = ['КОД', 'НАИМ']
+    data_headers = ['СПТ', 'КОД', 'НАИМ', 'ЕСТЬ/НЕТ', 'КОД УП']
     # Подставляем значения в правильное место наполняемой строки
     upd_rowData = string_collector(rowData, headers, autofill_data, data_headers)
 
