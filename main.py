@@ -326,8 +326,11 @@ def save():
     data = request.form.get('data')
     data = json.loads(data)
 
+    print(f'\nHeaders: {headers}')
+    print(f'Data: {data}')
+
     # Запись данных в файл
-    df = pd.DataFrame(data, columns=headers)
+    df = pd.DataFrame(data, columns=headers[:31])  # Этот срез надо полностью устранить. Реквест тянет 62 заголовка.
     df.to_excel('Result_.xlsx', index=False)
 
     return jsonify({'message': 'Данные успешно сохранены!'})
@@ -466,7 +469,7 @@ def autofill(headers, rowData):
     '''
     Значения по-умолчанию, которые заполняются автоматически
     '''
-    spt = 'КОРЕЯ'
+    spt = 'KR'
     code = 796
     measure_units = 'шт'
     avaible = '1'

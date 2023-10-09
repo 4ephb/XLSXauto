@@ -25,7 +25,7 @@
             {% for row in data %}
                 <tr>
                     {% for cell in row %}
-                        <td contenteditable="true" data-value="{{ cell }}">{{ cell }}</td>
+                        <td contenteditable="true" data-value="{{ cell }}" class="no-wrap">{{ cell }}</td>
                     {% endfor %}
                 </tr>
             {% endfor %}
@@ -45,7 +45,7 @@
         <script src="https://cdn.datatables.net/buttons/2.0.1/js/dataTables.buttons.min.js"></script>
         <script src="https://cdn.datatables.net/buttons/2.0.1/js/buttons.bootstrap5.min.js"></script>
         {#        <script src="https://cdn.datatables.net/buttons/2.0.1/js/buttons.html5.min.js"></script>#}
-        <script src="https://cdn.datatables.net/fixedheader/3.1.9/js/dataTables.fixedHeader.min.js"></script>
+{#        <script src="https://cdn.datatables.net/fixedheader/3.1.9/js/dataTables.fixedHeader.min.js"></script>#}
         <script src="{{ url_for('static', filename='js/scripts_2.js') }}"></script>
 {#    {% endblock %}#}
 {% endblock %}

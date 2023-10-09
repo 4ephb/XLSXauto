@@ -1,10 +1,15 @@
 $(document).ready(function () {
     $('#ResultTable').DataTable({
+        "scrollY": "2000px",
+        "scrollCollapse": true,
+        "paging": false,
+        "searching": false,
+        // "fixedHeader": true,
         // Задать номер строки, на которой должен быть зафиксирован заголовок
-        fixedHeader: {
-            header: true,
-            headerOffset: 0,
-        }
+        // fixedHeader: {
+        //     header: true,
+        //     headerOffset: 0,
+        // }
     });
 });
 
@@ -46,7 +51,7 @@ $('td').on('keydown', function(event) {
         type: 'POST',
         url: '/update',
         data: JSON.stringify({
-            rowIndex: rowIndex,
+            rowIndex: rowIndex+1,
             colIndex: colIndex,
             // cellData: cellData,
             headers: headers,
