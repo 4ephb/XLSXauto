@@ -8,6 +8,7 @@ $(document).ready(function () {
         // Задать номер строки, на которой должен быть зафиксирован заголовок
         // fixedHeader: {
         //     header: true,
+        //     footer: false,
         //     headerOffset: 0,
         // }
     });
