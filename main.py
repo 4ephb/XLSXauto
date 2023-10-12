@@ -5,6 +5,7 @@
 ##########################################
 
 import os
+import re
 from flask import Flask, render_template, redirect, request, url_for, flash, jsonify, json
 from flask_sqlalchemy import SQLAlchemy
 from flask_bootstrap import Bootstrap
@@ -192,14 +193,14 @@ def upload():
             df = pd.read_excel(file)  # Чтение данных из загруженного файла xlsx
             df = create_result_df(df)  # Преобразуем входящую таблицу в result таблицу
 
-            # Применение функций чистки на наличие множественных/левых/правых пробелов
-            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].apply(clean_spaces)
-            df['ТМ'] = df['ТМ'].apply(clean_spaces)
-
             # Применение функций чистки на наличие латиницы к данным столбцов
-            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].apply(clean_lat_symbols)
+            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].astype(str).apply(clean_lat_symbols)
             # Применение функций чистки на наличие кириллицы к данным столбцов
-            df['ТМ'] = df['ТМ'].apply(clean_cyr_symbols)
+            df['ТМ'] = df['ТМ'].astype(str).apply(clean_cyr_symbols)
+
+            # Применение функций чистки на наличие множественных/левых/правых пробелов
+            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].map(clean_spaces)
+            df['ТМ'] = df['ТМ'].map(clean_spaces)
 
             headers = df.columns.tolist()  # Заголовки таблицы входящего файла
             data = df.values.tolist()  # Данные таблицы входящего файла
@@ -342,9 +343,15 @@ def save():
 
 
 def get_cert_info(engine, headers, rowData, naim_value, tm_value):
+    # Применяем функцию convert_character_to_space к значениям naim_value и tm_value
+    cleaned_naim_value = convert_character_to_space(naim_value)
+    cleaned_tm_value = convert_character_to_space(tm_value)
+    print(f'cleaned_naim_value = {cleaned_naim_value}')
+    print(f'cleaned_tm_value = {cleaned_tm_value}\n')
+
     # Чистка данных с помощью функции stem_porter()
-    stem_naim_value = stem_porter(naim_value)
-    stem_tm_value = stem_porter(tm_value)
+    stem_naim_value = stem_porter(cleaned_naim_value)
+    stem_tm_value = stem_porter(cleaned_tm_value)
     print(f'stem_naim_value = {stem_naim_value}')
     print(f'stem_tm_value = {stem_tm_value}\n')
 
@@ -353,9 +360,14 @@ def get_cert_info(engine, headers, rowData, naim_value, tm_value):
     session = Session()
 
     # Применение функции stem_porter к каждому значению столбца Designations2.designation
-    stem_designation = func.stem_porter(Designations2.designation)
+    cleaned_designation = func.convert_character_to_space(Designations2.designation)
     # Применение функции stem_porter к каждому значению столбца TradeMarks.trade_mark
-    stem_trademarks = func.stem_porter(TradeMarks.trade_mark)
+    cleaned_trademarks = func.convert_character_to_space(TradeMarks.trade_mark)
+
+    # Применение функции stem_porter к каждому значению столбца Designations2.designation
+    stem_designation = func.stem_porter(cleaned_designation)
+    # Применение функции stem_porter к каждому значению столбца TradeMarks.trade_mark
+    stem_trademarks = func.stem_porter(cleaned_trademarks)
 
     # Ну это алхимия)))
     matching_records = session.query(Designations1.designation,
@@ -422,6 +434,7 @@ def get_coefficient(matching_records):
 @event.listens_for(engine, "connect")
 def sqlite_connect(dbapi_conn, conn_record):
     dbapi_conn.create_function("stem_porter", 1, stem_porter)
+    dbapi_conn.create_function("convert_character_to_space", 1, convert_character_to_space)
 
 
 def string_collector(rowData, headers, values, col_names):
@@ -586,8 +599,30 @@ def clean_lat_symbols(data):
     на наличие символов латиницы
     должна возвращать очищенные данные
     """
-    cleaned_data = data
-    return cleaned_data
+    lat_to_cyr = {
+        'A': 'А', 'a': 'а',
+        'B': 'В',
+        'E': 'Е', 'e': 'е',
+        '3': 'з',
+        'K': 'К', 'k': 'к',
+        'M': 'М',
+        'H': 'Н', 'h': 'н',
+        'O': 'О', 'o': 'о',
+        'P': 'Р', 'p': 'р',
+        'C': 'С', 'c': 'с',
+        'T': 'Т', 't': 'т',
+        'Y': 'У', 'y': 'у',
+        'X': 'Х', 'x': 'х',
+        'b': 'ь',
+        'n': 'п'}
+
+    if pd.isnull(data) or data == 'nan':
+        return ''
+    else:
+        data = re.sub(r'[a-zA-Z3]', lambda x: lat_to_cyr.get(x.group(), x.group()), data)
+        # data = re.sub(r'[a-zA-Z]', lambda x: lat_to_cyr[x.group()], data)
+        print(f'lat_to_cyr: {data}')
+        return data
 
 
 def clean_cyr_symbols(data):
@@ -596,32 +631,74 @@ def clean_cyr_symbols(data):
     на наличие символов кириллицы
     должна возвращать очищенные данные
     """
-    cleaned_data = data
-    return cleaned_data
+    cyr_to_lat = {
+        'А': 'A', 'а': 'a',
+        'В': 'B',
+        'С': 'C', 'с': 'c',
+        'Е': 'E', 'е': 'e',
+        'Н': 'H', 'н': 'h',
+        'К': 'K', 'к': 'k',
+        'М': 'M',
+        'О': 'O', 'о': 'o',
+        'Р': 'P', 'р': 'p',
+        'Т': 'T', 'т': 't',
+        'Х': 'X', 'х': 'x',
+        'У': 'Y', 'у': 'y',
+        'п': 'n',
+        'ь': 'b'}
+
+    if pd.isnull(data) or data == 'nan':
+        return ''
+    else:
+        data = re.sub(r'[а-яА-Я]', lambda x: cyr_to_lat.get(x.group(), x.group()), data)
+        # data = re.sub(r'[а-яА-Я]', lambda x: cyr_to_lat[x.group()], data)
+        print(f'cyr_to_lat: {data}')
+        return data
 
 
 def clean_spaces(data):
     """
-        Функция для очистки данных в строковых столбцах
-        на наличие множественных/левых/правых пробелов
-        должна возвращать очищенные данные
-        """
-    cleaned_data = data
-    return cleaned_data
+    Функция для очистки данных в строковых столбцах
+    на наличие множественных/левых/правых пробелов
+    должна возвращать очищенные данные
+    """
+    if pd.isnull(data) or data == 'nan' or data == '':
+        return ''
+    else:
+        # Проверяем, является ли data строкой
+        if isinstance(data, str):
+            # Удаляем начальные и конечные пробелы
+            data = data.strip()
+            if ' ' in data:
+                # Замена множественных пробелов на один пробел
+                data = ' '.join(data.split())
+        print(f'clean_spaces: {data}')
+        return data
+
+
+def convert_character_to_space(data):
+    """
+    Функция для очистки данных в строковых столбцах.
+    Преобразовывает все спецсимволы в одинарный пробел.
+    Должна возвращать очищенные данные.
+    """
+    if pd.isnull(data) or data == 'nan' or data == '':
+        return ''
+    else:
+        # Проверяем, является ли data строкой
+        if isinstance(data, str):
+            # pattern = r'[^0-9]+'
+            pattern = r'[^\w\s]'
+            data = re.sub(pattern, ' ', data)
+        print(f'clean_spaces: {data}')
+        return data
 
 
 def stem_porter(data):
     """
-        Функция для очистки данных в строковых столбцах
-        Стеммер Портера
-        должна возвращать очищенные данные
-        """
+    Функция для очистки данных в строковых столбцах
+    Стеммер Портера
+    должна возвращать очищенные данные
+    """
     cleaned_data = data.lower()
     return cleaned_data
-#
-#
-#
-#
-#
-# if __name__ == '__main__':
-#     app.run()
