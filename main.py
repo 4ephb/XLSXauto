@@ -22,6 +22,8 @@ import forms
 from utils import secret_key
 import random
 
+from modules.PorterStemmerRU import PorterStemmerRU
+
 ##########################################
 # init:
 ##########################################
@@ -70,7 +72,7 @@ class Certificates(Base):
         Связана с моделью Certificates через внешний ключ cert_id.
 
     CHILD_2: TradeMarks
-        Oдна запись в Certificates может иметь несколько записей в TradeMarks.
+        Одна запись в Certificates может иметь несколько записей в TradeMarks.
         Связана с моделью Certificates через внешний ключ cert_id.
     """
     __tablename__ = 'certificates'
@@ -202,6 +204,20 @@ def upload():
             df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].map(clean_spaces)
             df['ТМ'] = df['ТМ'].map(clean_spaces)
 
+            # Проходим по значениям колонки 'НАИМЕНОВАНИЕ2' и обновляем данные с помощью update()
+            for index, row in df.iterrows():
+                col_index = df.columns.get_loc('НАИМЕНОВАНИЕ2')
+                request_data = {
+                    'rowIndex': index,
+                    'colIndex': col_index,
+                    'rowData': row.tolist(),
+                    'headers': df.columns.tolist()
+                }
+                # Вызываем функцию update() и получаем обновленную строку
+                with app.test_request_context(json=request_data, method='POST'):
+                    updated_row_data = update().get_json()['rowData']
+                df.loc[index] = updated_row_data
+
             headers = df.columns.tolist()  # Заголовки таблицы входящего файла
             data = df.values.tolist()  # Данные таблицы входящего файла
 
@@ -212,6 +228,48 @@ def upload():
         # обработка GET запроса
         # возвращение страницы с формой загрузки файла
         return render_template('edit.html')
+
+
+@app.route('/upload_2', methods=['GET', 'POST'])
+@login_required
+def upload_2():
+    if request.method == 'POST':
+        file = request.files['file']
+        if file:
+            df = pd.read_excel(file)  # Чтение данных из загруженного файла xlsx
+            df = create_result_df(df)  # Преобразуем входящую таблицу в result таблицу
+
+            # Применение функций чистки на наличие латиницы к данным столбцов
+            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].astype(str).apply(clean_lat_symbols)
+            # Применение функций чистки на наличие кириллицы к данным столбцов
+            df['ТМ'] = df['ТМ'].astype(str).apply(clean_cyr_symbols)
+
+            # Применение функций чистки на наличие множественных/левых/правых пробелов
+            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].map(clean_spaces)
+            df['ТМ'] = df['ТМ'].map(clean_spaces)
+
+            # Проходим по значениям колонки 'НАИМЕНОВАНИЕ2' и обновляем данные с помощью update()
+            for index, row in df.iterrows():
+                col_index = df.columns.get_loc('НАИМЕНОВАНИЕ2')
+                request_data = {
+                    'rowIndex': index,
+                    'colIndex': col_index,
+                    'rowData': row.tolist(),
+                    'headers': df.columns.tolist()
+                }
+                # Вызываем функцию update() и получаем обновленную строку
+                with app.test_request_context(json=request_data, method='POST'):
+                    updated_row_data = update().get_json()['rowData']
+                df.loc[index] = updated_row_data
+
+            headers = df.columns.tolist()  # Заголовки таблицы входящего файла
+            data = df.values.tolist()  # Данные таблицы входящего файла
+
+            return render_template('edit_hot.html', headers=headers, data=data)
+    else:
+        # обработка GET запроса
+        # возвращение страницы с формой загрузки файла
+        return render_template('edit_hot.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -331,7 +389,7 @@ def save():
     print(f'Data: {data}')
 
     # Запись данных в файл
-    df = pd.DataFrame(data, columns=headers[:31])  # Этот срез надо полностью устранить. Реквест тянет 62 заголовка.
+    df = pd.DataFrame(data, columns=headers[:31])  # Этот срез надо полностью устранить. request тянет 62 заголовка.
     df.to_excel('Result_.xlsx', index=False)
 
     return jsonify({'message': 'Данные успешно сохранены!'})
@@ -345,29 +403,30 @@ def save():
 def get_cert_info(engine, headers, rowData, naim_value, tm_value):
     # Применяем функцию convert_character_to_space к значениям naim_value и tm_value
     cleaned_naim_value = convert_character_to_space(naim_value)
-    cleaned_tm_value = convert_character_to_space(tm_value)
-    print(f'cleaned_naim_value = {cleaned_naim_value}')
-    print(f'cleaned_tm_value = {cleaned_tm_value}\n')
+    cleaned_tm_value = convert_character_to_space(tm_value).lower()
 
     # Чистка данных с помощью функции stem_porter()
-    stem_naim_value = stem_porter(cleaned_naim_value)
-    stem_tm_value = stem_porter(cleaned_tm_value)
-    print(f'stem_naim_value = {stem_naim_value}')
-    print(f'stem_tm_value = {stem_tm_value}\n')
+    cleaned_naim_value = stem_porter(cleaned_naim_value)
+    # stem_tm_value = stem_porter(cleaned_tm_value)
+
+    # Чистка данных с помощью функции clean_all_spaces()
+    cleaned_tm_value = clean_all_spaces(cleaned_tm_value)
+
+    print(f'cleaned_naim_value = {cleaned_naim_value}')
+    print(f'cleaned_tm_value = {cleaned_tm_value}\n')
 
     # Создание сессии
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    # Применение функции stem_porter к каждому значению столбца Designations2.designation
+    # Применяем функцию convert_character_to_space к каждому значению столбца Designations2.designation и TradeMarks.trade_mark
     cleaned_designation = func.convert_character_to_space(Designations2.designation)
-    # Применение функции stem_porter к каждому значению столбца TradeMarks.trade_mark
     cleaned_trademarks = func.convert_character_to_space(TradeMarks.trade_mark)
-
-    # Применение функции stem_porter к каждому значению столбца Designations2.designation
+    # Применяем функцию stem_porter к каждому значению столбца Designations2.designation и TradeMarks.trade_mark
     stem_designation = func.stem_porter(cleaned_designation)
-    # Применение функции stem_porter к каждому значению столбца TradeMarks.trade_mark
     stem_trademarks = func.stem_porter(cleaned_trademarks)
+    # Применяем функцию clean_all_spaces к каждому значению столбца TradeMarks.trade_mark
+    cleaned_trademarks = func.clean_all_spaces(stem_trademarks)
 
     # Ну это алхимия)))
     matching_records = session.query(Designations1.designation,
@@ -385,8 +444,8 @@ def get_cert_info(engine, headers, rowData, naim_value, tm_value):
         TradeMarks, Designations2.cert_id == TradeMarks.cert_id).join(
         Certificates, Designations2.cert_id == Certificates.id).join(
         Designations1, Designations1.hscode == Designations2.hscode).filter(
-        stem_designation == stem_naim_value,
-        stem_trademarks == stem_tm_value).distinct().all()
+        stem_designation == cleaned_naim_value,
+        cleaned_trademarks == cleaned_tm_value).distinct().all()
 
     # Вывод найденных значений в консоль
     if len(matching_records) > 0:
@@ -435,6 +494,7 @@ def get_coefficient(matching_records):
 def sqlite_connect(dbapi_conn, conn_record):
     dbapi_conn.create_function("stem_porter", 1, stem_porter)
     dbapi_conn.create_function("convert_character_to_space", 1, convert_character_to_space)
+    dbapi_conn.create_function("clean_all_spaces", 1, clean_all_spaces)
 
 
 def string_collector(rowData, headers, values, col_names):
@@ -456,7 +516,8 @@ def calculations(headers, rowData, quantity_value, gross_value, skg_value):
     :return: upd_rowData
     """
     quantity_value = int(quantity_value)
-    gross_value = float(gross_value.replace(',', '.'))
+    if isinstance(gross_value, str):
+        gross_value = float(gross_value.replace(',', '.'))
     if skg_value:
         skg_value = float(skg_value.replace(',', '.'))
     else:
@@ -477,7 +538,6 @@ def calculations(headers, rowData, quantity_value, gross_value, skg_value):
     return upd_rowData
 
 
-
 def autofill(headers, rowData):
     '''
     Значения по-умолчанию, которые заполняются автоматически
@@ -485,7 +545,7 @@ def autofill(headers, rowData):
     spt = 'KR'
     code = 796
     measure_units = 'шт'
-    avaible = '1'
+    avaible = 1
     kod_up = '4D'
     autofill_data = [spt, code, measure_units, avaible, kod_up]
     # Заголовки таблицы в которых необходимо заменить полученные значения
@@ -549,7 +609,7 @@ def route_by_columns(rowIndex, colIndex, rowData, headers):
 
 def get_colIndex_by_colName(colName, headers):
     """
-    Получаем Индекс колонки по Заголовоку колонки
+    Получаем Индекс колонки по Заголовку колонки
     :return: col_index
     """
     # headers = request.form.getlist('headers[]')
@@ -576,7 +636,7 @@ def create_result_df(excel_df):
         'ДОП КОД УП', 'КОД №1', 'СЕРТ №1', 'НАЧАЛО №1', 'КОНЕЦ №1', 'КОД №2',
         'СЕРТ №2', 'НАЧАЛО №2', 'КОНЕЦ №2'
     ]
-    # Определяем датафрейм result_df с заголовками result_column_headers
+    # Определяем dataframe result_df с заголовками result_column_headers
     result_df = pd.DataFrame(columns=result_column_headers)
     # Отображение только необходимых столбцов
     excel_df = excel_df[['Наименование', 'Торговая Марка', 'Количество, шт.', 'Вес БРУТТО, кг.']]
@@ -621,7 +681,7 @@ def clean_lat_symbols(data):
     else:
         data = re.sub(r'[a-zA-Z3]', lambda x: lat_to_cyr.get(x.group(), x.group()), data)
         # data = re.sub(r'[a-zA-Z]', lambda x: lat_to_cyr[x.group()], data)
-        print(f'lat_to_cyr: {data}')
+        # print(f'lat_to_cyr: {data}')
         return data
 
 
@@ -652,7 +712,7 @@ def clean_cyr_symbols(data):
     else:
         data = re.sub(r'[а-яА-Я]', lambda x: cyr_to_lat.get(x.group(), x.group()), data)
         # data = re.sub(r'[а-яА-Я]', lambda x: cyr_to_lat[x.group()], data)
-        print(f'cyr_to_lat: {data}')
+        # print(f'cyr_to_lat: {data}')
         return data
 
 
@@ -672,7 +732,22 @@ def clean_spaces(data):
             if ' ' in data:
                 # Замена множественных пробелов на один пробел
                 data = ' '.join(data.split())
-        print(f'clean_spaces: {data}')
+        # print(f'clean_spaces: {data}')
+        return data
+
+
+def clean_all_spaces(data):
+    """
+    Функция для очистки данных в строковых столбцах
+    от всех имеющихся пробелов
+    должна возвращать очищенные данные
+    """
+    if pd.isnull(data) or data == 'nan' or data == '':
+        return ''
+    else:
+        # Проверяем, является ли data строкой
+        if isinstance(data, str):
+            data = data.replace(' ', '')
         return data
 
 
@@ -690,15 +765,22 @@ def convert_character_to_space(data):
             # pattern = r'[^0-9]+'
             pattern = r'[^\w\s]'
             data = re.sub(pattern, ' ', data)
-        print(f'clean_spaces: {data}')
+        # print(f'clean_spaces: {data}')
         return data
 
 
 def stem_porter(data):
     """
     Функция для очистки данных в строковых столбцах
-    Стеммер Портера
+    Стемм Портера
     должна возвращать очищенные данные
     """
-    cleaned_data = data.lower()
-    return cleaned_data
+    # Создание экземпляра класса PorterStemmerRU
+    stemmer = PorterStemmerRU()
+    # Предварительная проверка типа значения. Если число, то пропускаем, иначе применяем стемм Портера
+    if isinstance(data, float):
+        return data
+    else:
+        return ' '.join([stemmer.stem(word) for word in data.split()])
+    # cleaned_data = data.lower()
+    # return cleaned_data
