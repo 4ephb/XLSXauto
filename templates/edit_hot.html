@@ -1,0 +1,40 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<main>
+    <div class="container-fluid px-4">
+        <h1 class="mt-4">{{ title }}</h1>
+        <ol class="breadcrumb mb-4">
+            <li class="breadcrumb-item active">{{ title }}</li>
+        </ol>
+    </div>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <label for="fileInput" class="form-label">Выберите файл Excel:</label>
+        <input type="file" id="fileInput" name="file" accept=".xlsx, .xls">
+        <input type="submit" value="Загрузить" style="display: none;">
+    </form>
+        <table id="ResultTable" class="hot">
+            <thead>
+            <tr>
+                {% for header in headers %}
+                    <th>{{ header }}</th>
+                {% endfor %}
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in data %}
+                <tr>
+                    {% for cell in row %}
+                        <td contenteditable="true" data-value="{{ cell }}" class="no-wrap">{{ cell }}</td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    <button type="button" id="saveBtn" class="btn btn-primary" value="Сохранить">Сохранить</button>
+</main>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@13.1.0/dist/handsontable.full.min.css">
+<script src="https://cdn.jsdelivr.net/npm/handsontable@13.1.0/dist/handsontable.full.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="{{ url_for('static', filename='js/scripts_2_hot.js') }}"></script>
