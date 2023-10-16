@@ -41,7 +41,8 @@ $('td').on('keydown', function(event) {
 
     var rowIndex = $(this).closest('tr').index();
     var colIndex = $(this).index();
-    // var cellData = $(this).data('value');
+    var cellData = $(this).data('oldValue');
+    // var cellData = $(this).text($(this).data('oldValue'));
     // var cellData = $(this).text();
     var rowData = [];
     $(this).closest('tr').find('td').each(function() {
@@ -54,11 +55,11 @@ $('td').on('keydown', function(event) {
         data: JSON.stringify({
             rowIndex: rowIndex+1,
             colIndex: colIndex,
-            // cellData: cellData,
+            cellData: cellData,
             headers: headers,
             rowData: rowData,
         }),
-        contentType: 'aplication/json',
+        contentType: 'application/json',
         success: function(response) {
             // // Обновление ячейки таблицы новыми данными
             // $('table tr').eq(rowIndex + 1).find('td').eq(response.colIndex).text(response.cellData);

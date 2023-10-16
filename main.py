@@ -356,12 +356,13 @@ def update():
     request_data = request.get_json(force=True)
     rowIndex = int(request_data['rowIndex'])
     colIndex = int(request_data['colIndex'])
-    # cellData = request_data['cellData']
+    cellData = request_data.get('cellData')
     rowData = request_data['rowData']
     # headers = request_data['headers']
     headers = request_data.get('headers', [])
 
-    upd_rowData = route_by_columns(rowIndex, colIndex, rowData, headers)
+    upd_rowData = route_by_columns(rowIndex, colIndex, cellData, rowData, headers)
+    # upd_rowData = route_by_columns(rowIndex, colIndex, rowData, headers)
 
     # Создание ответа с обновленными данными
     response_data = {'status': 'success', 'rowIndex': rowIndex, 'rowData': upd_rowData}
@@ -526,10 +527,25 @@ def calculations(headers, rowData, quantity_value, gross_value, skg_value):
     # print(f'{gross_value} {type(gross_value)}')
     # print(f'{skg_value} {type(skg_value)}')
     random.seed(42)
-    net_value = gross_value * random.uniform(0.891111111111, 0.911111111111)
+    net_value = gross_value * random.uniform(0.8911111111111111, 0.9111111111111111)
+    # net_value = gross_value * (random.random() * 0.02 + 0.8911111111111111)
     cost = net_value * skg_value
     unit_weight = net_value / quantity_value
-    digits = [quantity_value, round(unit_weight, 2), round(gross_value, 2), round(net_value, 2), round(skg_value, 2), round(cost, 2)]
+
+    n = 2
+    # unit_weight = str(round(unit_weight, n)).replace('.', ',')
+    # gross_value = str(round(gross_value, n)).replace('.', ',')
+    # net_value = str(round(net_value, n)).replace('.', ',')
+    # skg_value = str(round(skg_value, n)).replace('.', ',')
+    # cost = str(round(cost, n)).replace('.', ',')
+
+    unit_weight = str(round(unit_weight, n))
+    gross_value = str(round(gross_value, n))
+    net_value = str(round(net_value, n))
+    skg_value = str(round(skg_value, n))
+    cost = str(round(cost, n))
+
+    digits = [quantity_value, unit_weight, gross_value, net_value, skg_value, cost]
     print(f'\n{digits}')
     # Заголовки таблицы в которых необходимо заменить полученные значения
     data_headers = ['КОЛ-ВО', 'ВЕС ШТ', 'БР', 'НТ', '$/КГ', 'ЦЕНА']
@@ -556,7 +572,8 @@ def autofill(headers, rowData):
     return upd_rowData
 
 
-def route_by_columns(rowIndex, colIndex, rowData, headers):
+def route_by_columns(rowIndex, colIndex, cellData, rowData, headers):
+# def route_by_columns(rowIndex, colIndex, rowData, headers):
     """
     В зависимости от имени редактируемой колонки,
     применять определенный набор функций.
@@ -586,24 +603,54 @@ def route_by_columns(rowIndex, colIndex, rowData, headers):
         print(f'Входящие значения строки: {rowData}\n')
 
         upd_rowData = get_cert_info(engine, headers, rowData, naim_value, tm_value)
-
         # Получаем значение из $/КГ
         skg_index = get_colIndex_by_colName('$/КГ', headers)
         skg_value = rowData[skg_index]
-
         upd_rowData = calculations(headers, upd_rowData, quantity_value, gross_value, skg_value)
         upd_rowData = autofill(headers, upd_rowData)
     if col_name == 'КОЛ-ВО':
-        # rowData[0] = '+' + rowData[0]
-        upd_rowData = rowData
-    if col_name == 'КОД ТНВД':
-        return upd_rowData
+        # upd_rowData[0] = '+' + upd_rowData[0]
+        upd_rowData = quantity_update(colIndex, rowData, cellData, headers)
+    else:
+        pass
 
     upd_rowIndex = rowIndex  # rowIndex вообще больше нигде не использую, кроме как посмотреть где редактирование было
     upd_colIndex = colIndex
     print(f'\nСтолбец: {upd_colIndex} | Строка: {upd_rowIndex}')
-
     print(f'Обновленные значения строки: {upd_rowData}')
+    return upd_rowData
+
+
+def quantity_update(colIndex, rowData, cellData, headers):
+    upd_rowData = rowData
+    new_cellData = upd_rowData[colIndex]
+
+    print(f'Старое значение: {cellData}')
+    print(f'Новое значение {new_cellData}')
+    k = int(new_cellData) / int(cellData)
+    print(f'Коэффициент: {k}')
+    # Получаем значение из БР
+    gross_index = get_colIndex_by_colName('БР', headers)
+    gross_value = float(rowData[gross_index]) * k
+    # Получаем значение из НТ
+    net_index = get_colIndex_by_colName('НТ', headers)
+    net_value = float(rowData[net_index]) * k
+
+    # unit_index = get_colIndex_by_colName('ВЕС ШТ', headers)
+    # unit_weight = float(rowData[unit_index])
+    unit_weight = net_value / new_cellData
+
+    new_cellData = round(new_cellData, 2)
+    unit_weight = round(unit_weight, 2)
+    gross_value = round(gross_value, 2)
+    net_value = round(net_value, 2)
+
+    new_data = [new_cellData, unit_weight, gross_value, net_value]
+    # Заголовки таблицы в которых необходимо заменить полученные значения
+    data_headers = ['КОЛ-ВО', 'ВЕС ШТ', 'БР', 'НТ']
+    # Подставляем значения в правильное место наполняемой строки
+    upd_rowData = string_collector(rowData, headers, new_data, data_headers)
+
     return upd_rowData
 
 
