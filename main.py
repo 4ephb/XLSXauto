@@ -640,14 +640,19 @@ def quantity_update(colIndex, rowData, cellData, headers):
     # unit_weight = float(rowData[unit_index])
     unit_weight = net_value / new_cellData
 
+    skg_index = get_colIndex_by_colName('$/КГ', headers)
+    skg_value = float(rowData[skg_index])
+    cost = net_value * skg_value
+
     new_cellData = round(new_cellData, 2)
     unit_weight = round(unit_weight, 2)
     gross_value = round(gross_value, 2)
     net_value = round(net_value, 2)
+    cost = round(cost, 2)
 
-    new_data = [new_cellData, unit_weight, gross_value, net_value]
+    new_data = [new_cellData, unit_weight, gross_value, net_value, cost]
     # Заголовки таблицы в которых необходимо заменить полученные значения
-    data_headers = ['КОЛ-ВО', 'ВЕС ШТ', 'БР', 'НТ']
+    data_headers = ['КОЛ-ВО', 'ВЕС ШТ', 'БР', 'НТ', 'ЦЕНА']
     # Подставляем значения в правильное место наполняемой строки
     upd_rowData = string_collector(rowData, headers, new_data, data_headers)
 
