@@ -390,7 +390,7 @@ def save():
     print(f'Data: {data}')
 
     # Запись данных в файл
-    df = pd.DataFrame(data, columns=headers[:31])  # Этот срез надо полностью устранить. request тянет 62 заголовка.
+    df = pd.DataFrame(data, columns=headers[:32])  # Этот срез надо полностью устранить. request тянет 64 заголовка.
     df.to_excel('Result_.xlsx', index=False)
 
     return jsonify({'message': 'Данные успешно сохранены!'})
@@ -511,44 +511,68 @@ def string_collector(rowData, headers, values, col_names):
     return rowData
 
 
-def calculations(headers, rowData, quantity_value, gross_value, skg_value):
+def calculations(headers, rowData, quantity, gross_weight, price_per_kg):
     """
     Последний шаг для заполнения строки
     :return: upd_rowData
     """
-    quantity_value = int(quantity_value)
-    if isinstance(gross_value, str):
-        gross_value = float(gross_value.replace(',', '.'))
-    if skg_value:
-        skg_value = float(skg_value.replace(',', '.'))
+    # Задаем quantity, gross_weight, price_per_kg
+    quantity = int(quantity)  # (КОЛ-ВО)
+    if isinstance(gross_weight, str):
+        gross_weight = float(gross_weight.replace(',', '.'))  # (БР)
+    if price_per_kg:
+        price_per_kg = float(price_per_kg.replace(',', '.'))  # ($/КГ)
     else:
         return rowData
+
     # print(f'\n{quantity_value} {type(quantity_value)}')
     # print(f'{gross_value} {type(gross_value)}')
     # print(f'{skg_value} {type(skg_value)}')
+
+    # Рассчитываем предварительный net_weight
     random.seed(42)
-    net_value = gross_value * random.uniform(0.8911111111111111, 0.9111111111111111)
-    # net_value = gross_value * (random.random() * 0.02 + 0.8911111111111111)
-    cost = net_value * skg_value
-    unit_weight = net_value / quantity_value
+    min_coeff = 0.8911  # 111111111111
+    max_coeff = 0.9112  # 111111111111
+    coeff = round(random.uniform(min_coeff, max_coeff), 4)
+    # coeff = (random.random() * 0.02 + min_coeff)
+    net_weight = gross_weight * coeff  # (НТ)
 
-    n = 2
-    # unit_weight = str(round(unit_weight, n)).replace('.', ',')
-    # gross_value = str(round(gross_value, n)).replace('.', ',')
-    # net_value = str(round(net_value, n)).replace('.', ',')
-    # skg_value = str(round(skg_value, n)).replace('.', ',')
-    # cost = str(round(cost, n)).replace('.', ',')
+    # Рассчитываем price
+    price = price_per_kg * net_weight  # (ЦЕНА)
+    price = round(price / quantity, 2) * quantity  # новая (ЦЕНА)
 
-    unit_weight = str(round(unit_weight, n))
-    gross_value = str(round(gross_value, n))
-    net_value = str(round(net_value, n))
-    skg_value = str(round(skg_value, n))
-    cost = str(round(cost, n))
+    # Рассчитываем итоговый net_weight
+    net_weight = price / price_per_kg  # (НТ)
 
-    digits = [quantity_value, unit_weight, gross_value, net_value, skg_value, cost]
+    # Рассчитываем weight_per_unit
+    weight_per_unit = net_weight / quantity  # (ВЕС ШТ)
+
+    # Рассчитываем price_per_unit
+    price_per_unit = price / quantity
+
+    # weight_per_unit = str(round(weight_per_unit, 3)).replace('.', ',')
+    # gross_weight = str(round(gross_weight, 2)).replace('.', ',')
+    # net_weight = str(round(net_weight, 2)).replace('.', ',')
+    # price_per_kg = str(round(price_per_kg, 2)).replace('.', ',')
+    # price = str(round(price, 2)).replace('.', ',')
+    # price_per_unit = str(round(price_per_unit, 2)).replace('.', ',')
+    # coeff = str(round(coeff, 4)).replace('.', ',')
+
+    # Округление
+    weight_per_unit = str(round(weight_per_unit, 3))
+    gross_weight = str(round(gross_weight, 2))
+    net_weight = str(round(net_weight, 2))
+    price_per_kg = str(round(price_per_kg, 2))
+    price = str(round(price, 2))
+    price_per_unit = round(price_per_unit, 2)  # Добавить колонку ($/ШТ) после (ВЕС ШТ)
+    coeff = round(coeff, 4)  # Скорее всего вообще не нужен
+
+    # digits = [quantity, weight_per_unit, gross_weight, net_weight, price_per_kg, price]
+    digits = [quantity, weight_per_unit, price_per_unit, gross_weight, net_weight, price_per_kg, price]
     print(f'\n{digits}')
     # Заголовки таблицы в которых необходимо заменить полученные значения
-    data_headers = ['КОЛ-ВО', 'ВЕС ШТ', 'БР', 'НТ', '$/КГ', 'ЦЕНА']
+    # data_headers = ['КОЛ-ВО', 'ВЕС ШТ', 'БР', 'НТ', '$/КГ', 'ЦЕНА']
+    data_headers = ['КОЛ-ВО', 'ВЕС ШТ', '$/ШТ', 'БР', 'НТ', '$/КГ', 'ЦЕНА']
     # Подставляем значения в правильное место наполняемой строки
     upd_rowData = string_collector(rowData, headers, digits, data_headers)
     return upd_rowData
@@ -623,36 +647,41 @@ def route_by_columns(rowIndex, colIndex, cellData, rowData, headers):
 
 def quantity_update(colIndex, rowData, cellData, headers):
     upd_rowData = rowData
-    new_cellData = upd_rowData[colIndex]
+    quantity = upd_rowData[colIndex]
 
     print(f'Старое значение: {cellData}')
-    print(f'Новое значение {new_cellData}')
-    k = int(new_cellData) / int(cellData)
+    print(f'Новое значение {quantity}')
+    k = int(quantity) / int(cellData)
     print(f'Коэффициент: {k}')
     # Получаем значение из БР
     gross_index = get_colIndex_by_colName('БР', headers)
-    gross_value = float(rowData[gross_index]) * k
+    gross_weight = float(rowData[gross_index]) * k
     # Получаем значение из НТ
     net_index = get_colIndex_by_colName('НТ', headers)
-    net_value = float(rowData[net_index]) * k
+    net_weight = float(rowData[net_index]) * k
 
     # unit_index = get_colIndex_by_colName('ВЕС ШТ', headers)
-    # unit_weight = float(rowData[unit_index])
-    unit_weight = net_value / new_cellData
+    # weight_per_unit = float(rowData[unit_index])
+    weight_per_unit = net_weight / quantity
 
-    skg_index = get_colIndex_by_colName('$/КГ', headers)
-    skg_value = float(rowData[skg_index])
-    cost = net_value * skg_value
+    price_per_kg_index = get_colIndex_by_colName('$/КГ', headers)
+    price_per_kg = float(rowData[price_per_kg_index])
+    price = net_weight * price_per_kg
 
-    new_cellData = round(new_cellData, 2)
-    unit_weight = round(unit_weight, 2)
-    gross_value = round(gross_value, 2)
-    net_value = round(net_value, 2)
-    cost = round(cost, 2)
+    # Рассчитываем price_per_unit
+    price_per_unit = price / quantity
 
-    new_data = [new_cellData, unit_weight, gross_value, net_value, cost]
+    # Округление
+    # quantity = round(quantity, 2)
+    weight_per_unit = round(weight_per_unit, 3)
+    price_per_unit = round(price_per_unit, 2)
+    gross_weight = round(gross_weight, 2)
+    net_weight = round(net_weight, 2)
+    price = round(price, 2)
+
+    new_data = [quantity, weight_per_unit, price_per_unit, gross_weight, net_weight, price]
     # Заголовки таблицы в которых необходимо заменить полученные значения
-    data_headers = ['КОЛ-ВО', 'ВЕС ШТ', 'БР', 'НТ', 'ЦЕНА']
+    data_headers = ['КОЛ-ВО', 'ВЕС ШТ', '$/ШТ', 'БР', 'НТ', 'ЦЕНА']
     # Подставляем значения в правильное место наполняемой строки
     upd_rowData = string_collector(rowData, headers, new_data, data_headers)
 
@@ -683,7 +712,7 @@ def create_result_df(excel_df):
     # Имена колонок Result таблицы
     result_column_headers = [
         'НАИМЕНОВАНИЕ1', 'НАИМЕНОВАНИЕ2', 'ИЗГОТОВИТЕЛЬ', 'ТМ', 'МАРКА', 'МОДЕЛЬ',
-        'АРТ', 'СПТ', 'КОЛ-ВО', 'КОД', 'НАИМ', 'КОД ТНВД', 'ДОП КОД', 'ВЕС ШТ',
+        'АРТ', 'СПТ', 'КОЛ-ВО', 'КОД', 'НАИМ', 'КОД ТНВД', 'ДОП КОД', 'ВЕС ШТ', '$/ШТ',
         'БР', 'НТ', '$/КГ', 'ЦЕНА', 'МЕСТА', 'МЕСТ ЧАСТ', 'ЕСТЬ/НЕТ', 'КОД УП',
         'ДОП КОД УП', 'КОД №1', 'СЕРТ №1', 'НАЧАЛО №1', 'КОНЕЦ №1', 'КОД №2',
         'СЕРТ №2', 'НАЧАЛО №2', 'КОНЕЦ №2'
