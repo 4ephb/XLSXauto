@@ -550,22 +550,22 @@ def calculations(headers, rowData, quantity, gross_weight, price_per_kg):
     # Рассчитываем price_per_unit
     price_per_unit = price / quantity
 
-    # weight_per_unit = str(round(weight_per_unit, 3)).replace('.', ',')
-    # gross_weight = str(round(gross_weight, 2)).replace('.', ',')
-    # net_weight = str(round(net_weight, 2)).replace('.', ',')
-    # price_per_kg = str(round(price_per_kg, 2)).replace('.', ',')
-    # price = str(round(price, 2)).replace('.', ',')
-    # price_per_unit = str(round(price_per_unit, 2)).replace('.', ',')
-    # coeff = str(round(coeff, 4)).replace('.', ',')
-
     # Округление
-    weight_per_unit = str(round(weight_per_unit, 3))
-    gross_weight = str(round(gross_weight, 2))
-    net_weight = str(round(net_weight, 2))
-    price_per_kg = str(round(price_per_kg, 2))
-    price = str(round(price, 2))
-    price_per_unit = round(price_per_unit, 2)  # Добавить колонку ($/ШТ) после (ВЕС ШТ)
-    coeff = round(coeff, 4)  # Скорее всего вообще не нужен
+    weight_per_unit = str(round(weight_per_unit, 3)).replace('.', ',')
+    gross_weight = str(round(gross_weight, 2)).replace('.', ',')
+    net_weight = str(round(net_weight, 2)).replace('.', ',')
+    price_per_kg = str(round(price_per_kg, 2)).replace('.', ',')
+    price = str(round(price, 2)).replace('.', ',')
+    price_per_unit = str(round(price_per_unit, 2)).replace('.', ',')
+    coeff = str(round(coeff, 4)).replace('.', ',')  # Скорее всего вообще не нужен
+
+    # weight_per_unit = str(round(weight_per_unit, 3))
+    # gross_weight = str(round(gross_weight, 2))
+    # net_weight = str(round(net_weight, 2))
+    # price_per_kg = str(round(price_per_kg, 2))
+    # price = str(round(price, 2))
+    # price_per_unit = round(price_per_unit, 2)
+    # coeff = round(coeff, 4)  # Скорее всего вообще не нужен
 
     # digits = [quantity, weight_per_unit, gross_weight, net_weight, price_per_kg, price]
     digits = [quantity, weight_per_unit, price_per_unit, gross_weight, net_weight, price_per_kg, price]
