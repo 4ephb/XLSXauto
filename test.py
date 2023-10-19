@@ -118,51 +118,129 @@
 # print(f'ЦЕНА: {price}')
 # print(f'$/ШТ: {price_per_unit}')
 
-import random
+# import random
+#
+# # Задаем quantity, gross_weight, price_per_kg
+# price_per_kg = 8.02  # ($/КГ)
+# # quantity = 500  # (КОЛ-ВО)
+# # gross_weight = 23  # (БР)
+# quantity = random.randrange(0, 1000, 100)  # (КОЛ-ВО)
+# gross_weight = random.randint(1, 101)  # (БР)
+#
+# # Рассчитываем предварительный net_weight
+# random.seed(42)
+# min_coeff = 0.8911  # 111111111111
+# max_coeff = 0.9111  # 111111111111
+# coeff = round(random.uniform(min_coeff, max_coeff), 4)
+# net_weight = gross_weight * coeff  # (НТ)
+#
+# # Рассчитываем price
+# price = price_per_kg * net_weight  # (ЦЕНА)
+# price = round(price / quantity, 2) * quantity  # новая (ЦЕНА)
+#
+# # Рассчитываем итоговый net_weight
+# net_weight = price / price_per_kg  # (НТ)
+#
+# # Рассчитываем итоговый coeff
+# coeff = net_weight / gross_weight
+#
+# # Рассчитываем weight_per_unit
+# weight_per_unit = net_weight / quantity  # (ВЕС ШТ)
+#
+# # Рассчитываем price_per_unit
+# price_per_unit = price / quantity
+#
+# # Округление
+# gross_weight = round(gross_weight, 2)
+# net_weight = round(net_weight, 2)
+# weight_per_unit = round(weight_per_unit, 3)
+# price = round(price, 2)
+# price_per_unit = round(price_per_unit, 2)
+# coeff = round(coeff, 4)
+#
+# # Результаты
+# print(f'$/КГ: {price_per_kg}')
+# print(f'КОЛ-ВО: {quantity}')
+# print(f'БР: {gross_weight}')
+# print(f'НТ =\t\t{gross_weight} * {coeff}\t\t= {net_weight}')
+# print(f'ВЕС ШТ =\t{net_weight} / {quantity}\t\t= {weight_per_unit}')
+# print(f'ЦЕНА =\t\t{net_weight} * {price_per_kg}\t= {price}')
+# print(f'$/ШТ =\t\t{price} / {quantity}\t\t= {price_per_unit}')
 
-# Задаем quantity, gross_weight, price_per_kg
-price_per_kg = 8.02  # ($/КГ)
-# quantity = 500  # (КОЛ-ВО)
-# gross_weight = 23  # (БР)
-quantity = random.randrange(0, 1000, 100)  # (КОЛ-ВО)
-gross_weight = random.randint(1, 101)  # (БР)
 
-# Рассчитываем предварительный net_weight
-random.seed(42)
-min_coeff = 0.8911  # 111111111111
-max_coeff = 0.9111  # 111111111111
-coeff = round(random.uniform(min_coeff, max_coeff), 4)
-net_weight = gross_weight * coeff  # (НТ)
+from xmltodict import parse
+import requests
+from decimal import Decimal, ROUND_UP
 
-# Рассчитываем price
-price = price_per_kg * net_weight  # (ЦЕНА)
-price = round(price / quantity, 2) * quantity  # новая (ЦЕНА)
 
-# Рассчитываем итоговый net_weight
-net_weight = price / price_per_kg  # (НТ)
+def get_rates():
+    rates = {}
+    response = requests.get('http://www.cbr.ru/scripts/XML_daily.asp')
+    response.encoding = 'cp1251'
 
-# Рассчитываем итоговый coeff
-coeff = net_weight / gross_weight
+    # text = response.text.encode('utf-8').replace('windows-1251', 'utf-8')
+    text = response.text.replace('windows-1251', 'utf-8')
+    cbr = parse(text)
 
-# Рассчитываем weight_per_unit
-weight_per_unit = net_weight / quantity  # (ВЕС ШТ)
+    rates['date'] = cbr['ValCurs']['@Date']
 
-# Рассчитываем price_per_unit
-price_per_unit = price / quantity
+    for v in cbr['ValCurs']['Valute']:
+        v['Value'] = float(v['Value'].replace(',', '.'))
+        rates[v['CharCode']] = v
 
-# Округление
-gross_weight = round(gross_weight, 2)
-net_weight = round(net_weight, 2)
-weight_per_unit = round(weight_per_unit, 3)
-price = round(price, 2)
-price_per_unit = round(price_per_unit, 2)
-coeff = round(coeff, 4)
+    return rates
 
-# Результаты
-print(f'$/КГ: {price_per_kg}')
-print(f'КОЛ-ВО: {quantity}')
-print(f'БР: {gross_weight}')
-print(f'НТ =\t\t{gross_weight} * {coeff}\t\t= {net_weight}')
-print(f'ВЕС ШТ =\t{net_weight} / {quantity}\t\t= {weight_per_unit}')
-print(f'ЦЕНА =\t\t{net_weight} * {price_per_kg}\t= {price}')
-print(f'$/ШТ =\t\t{price} / {quantity}\t\t= {price_per_unit}')
+
+def convert_currency(amount, rate):
+    return Decimal(1 / rate * amount).quantize(Decimal('0.01'), rounding=ROUND_UP)
+
+
+rates = get_rates()
+
+# Получаем курсы валют к рублю
+rate_usd = rates['USD']['Value']
+rate_cny = rates['CNY']['Value']
+rate_krw = rates['KRW']['Value']
+rate_jpy = rates['JPY']['Value']
+rate_eur = rates['EUR']['Value']
+
+# Выводим текущие курсы
+print('\nКурсы валют в рублях:')
+print(f"USD: {rate_usd} ₽")
+print(f"CNY: {rate_cny} ₽")
+print(f"KRW: {rate_krw} ₽")
+print(f"JPY: {rate_jpy} ₽")
+print(f"EUR: {rate_eur} ₽")
+
+# Преобразуем курсы валют к доллару
+rate_usd = rates['USD']['Value'] / rates['USD']['Value']
+rate_cny = rates['CNY']['Value'] / rates['USD']['Value']
+rate_krw = rates['KRW']['Value'] / rates['USD']['Value'] / 1000
+rate_jpy = rates['JPY']['Value'] / rates['USD']['Value'] / 100
+rate_eur = rates['EUR']['Value'] / rates['USD']['Value']
+
+# Выводим текущие курсы
+print('\nКурсы валют в долларах:')
+print(f"USD: {rate_usd} $")
+print(f"CNY: {rate_cny} $")
+print(f"KRW: {rate_krw} $")
+print(f"JPY: {rate_jpy} $")
+print(f"EUR: {rate_eur} $")
+
+# Пользователь вводит сумму в долларах
+dollars = float(input('\nВведите количество $: '))
+
+# Выполняем конвертацию
+dollar = convert_currency(dollars, rate_usd)
+yuan = convert_currency(dollars, rate_cny)
+won = convert_currency(dollars, rate_krw)
+yen = convert_currency(dollars, rate_jpy)
+euro = convert_currency(dollars, rate_eur)
+
+# Выводим результаты на экран
+print('\nКонвертация доллара:')
+print(f'{dollars}$ = {dollar}$')
+print(f'{dollars}$ = {yuan}¥')
+print(f'{dollars}$ = {won}₩')
+print(f'{dollars}$ = {yen}¥')
+print(f'{dollars}$ = {euro}€')
