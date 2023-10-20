@@ -74,6 +74,17 @@ $('td').on('keydown', function(event) {
     });
 });
 
+$('#usdBtn, #krwBtn, #jpyBtn, #cnyBtn').click(function(){
+    $.ajax({
+        type: 'POST',
+        url: '/convert_currency',
+        data: {currency: $(this).val()},
+        success: function(data){
+        console.log(data);
+        }
+    });
+});
+
 $('#saveBtn').on('click', function() {
     var data = [];
     var headers = [];

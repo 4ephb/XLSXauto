@@ -24,6 +24,11 @@ import random
 
 from modules.PorterStemmerRU import PorterStemmerRU
 
+from xmltodict import parse
+import requests
+from decimal import Decimal, ROUND_UP
+
+
 ##########################################
 # init:
 ##########################################
@@ -396,9 +401,53 @@ def save():
     return jsonify({'message': 'Данные успешно сохранены!'})
 
 
+curr_coeff = 1
+@app.route('/convert_currency', methods=['POST'])
+def convert_currency():
+    global curr_coeff
+    default_currency = 'USD'
+    rates = get_rates()
+    currency_code = request.form.get('currency', default=default_currency)
+    print(currency_code)
+
+    # Преобразуем курс валюты к доллару
+    rate = rates[currency_code]['Value'] / rates[default_currency]['Value']
+
+    if currency_code == 'KRW' and default_currency == 'USD':
+        rate = rate / 1000
+    if currency_code == 'JPY' and default_currency == 'USD':
+        rate = rate / 100
+
+    curr_coeff = rate
+    print(rate)
+    return jsonify(currency_code=currency_code)
+
+
 ##########################################
 # logic:
 ##########################################
+
+
+def get_rates():
+    rates = {}
+    response = requests.get('http://www.cbr.ru/scripts/XML_daily.asp')
+    response.encoding = 'cp1251'
+
+    # text = response.text.encode('utf-8').replace('windows-1251', 'utf-8')
+    text = response.text.replace('windows-1251', 'utf-8')
+    cbr = parse(text)
+
+    rates['date'] = cbr['ValCurs']['@Date']
+
+    for v in cbr['ValCurs']['Valute']:
+        v['Value'] = float(v['Value'].replace(',', '.'))
+        rates[v['CharCode']] = v
+
+    return rates
+
+
+def calculate_currency(amount, rate):
+    return Decimal(1 / rate * amount).quantize(Decimal('0.01'), rounding=ROUND_UP)
 
 
 def get_cert_info(engine, headers, rowData, naim_value, tm_value):
@@ -538,11 +587,11 @@ def calculations(headers, rowData, quantity, gross_weight, price_per_kg):
     net_weight = gross_weight * coeff  # (НТ)
 
     # Рассчитываем price
-    price = price_per_kg * net_weight  # (ЦЕНА)
+    price = (price_per_kg * curr_coeff) * net_weight  # (ЦЕНА)
     price = round(price / quantity, 2) * quantity  # новая (ЦЕНА)
 
     # Рассчитываем итоговый net_weight
-    net_weight = price / price_per_kg  # (НТ)
+    net_weight = price / (price_per_kg * curr_coeff)  # (НТ)
 
     # Рассчитываем weight_per_unit
     weight_per_unit = net_weight / quantity  # (ВЕС ШТ)
