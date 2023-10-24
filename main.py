@@ -6,7 +6,7 @@
 
 import os
 import re
-from flask import Flask, render_template, redirect, request, url_for, flash, jsonify, json, copy_current_request_context
+from flask import Flask, render_template, redirect, request, url_for, flash, jsonify, json
 from flask_sqlalchemy import SQLAlchemy
 from flask_bootstrap import Bootstrap
 from flask_login import UserMixin, LoginManager, current_user, login_required, login_user, logout_user
@@ -28,7 +28,6 @@ from xmltodict import parse
 import requests
 from decimal import Decimal, ROUND_UP
 
-from threading import Thread
 
 ##########################################
 # init:
@@ -410,73 +409,76 @@ curr_coeff = 1
 @cross_origin()
 def convert_currency():
     global curr_coeff
-    default_currency = 'USD'
+    default_currency_code = 'USD'
     rates = get_rates()
-    currency_code = request.form.get('currency', default=default_currency)
-    print(currency_code)
+    currency_code = request.form.get('currency', default=default_currency_code)
 
     # Преобразуем курс валюты к доллару
-    rate = rates[currency_code]['Value'] / rates[default_currency]['Value']
-
-    if currency_code == 'KRW' and default_currency == 'USD':
+    rate = rates[currency_code]['Value'] / rates[default_currency_code]['Value']
+    if currency_code == 'KRW' and default_currency_code == 'USD':
         rate = rate / 1000
-    if currency_code == 'JPY' and default_currency == 'USD':
+    if currency_code == 'JPY' and default_currency_code == 'USD':
         rate = rate / 100
-
     curr_coeff = rate
-    print(rate)
 
-    request_data = request.get_json(force=True)
-    if not request_data:
-        return jsonify({'error': 'Invalid JSON data'}), 400
-    headers = request_data.get('headers', [])
-    data = request_data.get('data', [])
+    print(f'{currency_code}\{default_currency_code}: {rate}')
+
+    # Получаем заголовки
+    headers = request.form.get('headers')
+    headers = json.loads(headers)
+
+    # Получаем данные со страницы
+    data = request.form.get('data')
+    data = json.loads(data)
+
+    # Запись данных в DF
+    df = pd.DataFrame(data, columns=headers[:32])
+
+    # print(f'\nHeaders: {headers}')
+    # print(f'Data: {data}')
+
+    # # Вывод заголовков
+    # print("Заголовки:")
+    # for header in headers:
+    #     print(header)
+    #
+    # # Вывод данных
+    # print("Данные:")
+    # print(df)
+
     data_rows = []
-
-    print(f'\n>>>>>>>>>>>>>>>>>>>>>Headers: {headers}')
-    print(f'>>>>>>>>>>>>>>>>>>>>>>>>>>Data: {data}')
-
-    for row in data:
+    for index, row in df.iterrows():
         quantity = row['КОЛ-ВО']
         gross_weight = row['БР']
         price_per_kg = row['$/КГ']
         updated_row_data = calculations(headers, row, quantity, gross_weight, price_per_kg)
         data_rows.append(updated_row_data)
-        # df.loc[index] = updated_row_data
 
-    updated_df = pd.DataFrame(data_rows, columns=headers)
 
-    # Создаем копию текущего запроса, чтобы передать его в отдельный поток
-    with copy_current_request_context():
-        thread = Thread(target=run_update, args=(headers, updated_df))
-        thread.start()
+    updated_df = pd.DataFrame(data_rows, columns=headers[:32])
 
-    # return render_template('edit.html', headers=headers, data=data)
-    return jsonify(currency_code=currency_code)
+    # for index, row in updated_df.iterrows():
+    #     col_index = updated_df.columns.get_loc('НАИМЕНОВАНИЕ2')
+    #     request_data = {
+    #         'rowIndex': index,
+    #         'colIndex': col_index,
+    #         'rowData': row.tolist(),
+    #         'headers': updated_df.columns.tolist()
+    #     }
+    #     with app.test_request_context(json=request_data, method='POST'):
+    #         updated_row_data = update().get_json().get('rowData')
+    #     updated_df.loc[index] = updated_row_data
+
+    headers = updated_df.columns.tolist()  # Заголовки таблицы входящего файла
+    data = updated_df.values.tolist()  # Данные таблицы входящего файла
+    result = {'headers': headers, 'data': data}
+    # print(result)
+    return jsonify(result)
 
 
 ##########################################
 # logic:
 ##########################################
-
-
-# Определите функцию, которая будет вызывать функцию `update` в отдельном потоке
-def run_update(headers, updated_df):
-    for index, row in updated_df.iterrows():
-        col_index = updated_df.columns.get_loc('НАИМЕНОВАНИЕ2')
-        request_data = {
-            'rowIndex': index,
-            'colIndex': col_index,
-            'rowData': row.tolist(),
-            'headers': updated_df.columns.tolist()
-        }
-        # with app.test_request_context(json=request_data, method='POST'):
-        #     updated_row_data = update().get_json().get('rowData')
-        # updated_df.loc[index] = updated_row_data
-        with app.test_client() as client:
-            response = client.post('/update', json=request_data)
-            updated_row_data = response.get_json().get('rowData')
-        updated_df.loc[index] = updated_row_data
 
 
 def get_rates():
@@ -636,7 +638,6 @@ def calculations(headers, rowData, quantity, gross_weight, price_per_kg):
     coeff = round(random.uniform(min_coeff, max_coeff), 4)
     # coeff = (random.random() * 0.02 + min_coeff)
     net_weight = Decimal(gross_weight * coeff).quantize(Decimal('0.01'), rounding=ROUND_UP)  # (НТ)
-    print(f'>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>{net_weight}')
 
     converted_currency = Decimal(1 / curr_coeff * price_per_kg).quantize(Decimal('0.01'), rounding=ROUND_UP)
     # Рассчитываем price
@@ -763,6 +764,7 @@ def quantity_update(colIndex, rowData, cellData, headers):
     # Получаем значение из НТ
     net_index = get_colIndex_by_colName('НТ', headers)
     net_weight = float((rowData[net_index]).replace(',', '.')) * k
+    net_weight = Decimal(net_weight).quantize(Decimal('0.01'), rounding=ROUND_UP)  # (НТ)
 
     # Рассчитываем weight_per_unit
     # unit_index = get_colIndex_by_colName('ВЕС ШТ', headers)
@@ -774,7 +776,13 @@ def quantity_update(colIndex, rowData, cellData, headers):
     price_per_kg = float((rowData[price_per_kg_index]).replace(',', '.'))
 
     # Рассчитываем price
-    price = net_weight * price_per_kg  # (ЦЕНА)
+    converted_currency = Decimal(1 / curr_coeff * price_per_kg).quantize(Decimal('0.01'), rounding=ROUND_UP)
+    price = converted_currency * net_weight  # (ЦЕНА)
+    price = round(price / quantity, 2) * quantity  # новая (ЦЕНА)
+    # price = net_weight * price_per_kg  # (ЦЕНА)
+
+    # Рассчитываем итоговый net_weight
+    net_weight = price / converted_currency  # (НТ)
 
     # Рассчитываем price_per_unit
     price_per_unit = price / quantity  # ($/ШТ)
