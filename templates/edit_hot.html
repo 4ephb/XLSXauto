@@ -1,40 +1,426 @@
-{% extends 'layout.html' %}
-
-{% block content %}
-<main>
-    <div class="container-fluid px-4">
-        <h1 class="mt-4">{{ title }}</h1>
-        <ol class="breadcrumb mb-4">
-            <li class="breadcrumb-item active">{{ title }}</li>
-        </ol>
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+    <meta name="description" content=""/>
+    <meta name="author" content=""/>
+    <link rel="shortcut icon" href="/static/assets/ico/favicon.ico"/>
+    {% if title %}<title>SPR CRM - {{ title }}</title>{% else %}<title>SPR CRM</title>{% endif %}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css"/>
+    <link href="{{ url_for('static', filename='/css/styles.css') }}" rel="stylesheet"/>
+    <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hyperformula/dist/hyperformula.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/languages/ru-RU.js"></script>
+</head>
+<body>
+    <h1>Новая табличка</h1>
+    <div class="row">
+        <div class="col-xl-3">
+            <form action="/upload_2" method="POST" enctype="multipart/form-data">
+                <label for="fileInput" class="form-label">Загрузить:</label>
+                <input type="file" id="fileInput" name="file" accept=".xlsx, .xls">
+                <input type="submit" value="Открыть">
+            </form>
+        </div>
+        {% if headers and data %}
+        <div class="col-xl-3">
+            <div class="btn-group" role="group">
+                <button type="button" id="usdBtn" class="btn btn-secondary" value="USD">USD</button>
+                <button type="button" id="krwBtn" class="btn btn-secondary" value="KRW">KRW</button>
+                <button type="button" id="jpyBtn" class="btn btn-secondary" value="JPY">JPY</button>
+                <button type="button" id="cnyBtn" class="btn btn-secondary" value="CNY">CNY</button>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="controls">
+                <label for="search_field">Поиск: </label>
+                <input id="search_field" type="search" placeholder="Search">
+            </div>
+        </div>
     </div>
-    <form action="/upload" method="post" enctype="multipart/form-data">
-        <label for="fileInput" class="form-label">Выберите файл Excel:</label>
-        <input type="file" id="fileInput" name="file" accept=".xlsx, .xls">
-        <input type="submit" value="Загрузить" style="display: none;">
-    </form>
-        <table id="ResultTable" class="hot">
-            <thead>
-            <tr>
-                {% for header in headers %}
-                    <th>{{ header }}</th>
-                {% endfor %}
-            </tr>
-            </thead>
-            <tbody>
-            {% for row in data %}
-                <tr>
-                    {% for cell in row %}
-                        <td contenteditable="true" data-value="{{ cell }}" class="no-wrap">{{ cell }}</td>
-                    {% endfor %}
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    <button type="button" id="saveBtn" class="btn btn-primary" value="Сохранить">Сохранить</button>
-</main>
+    <div id="excel-container"></div>
+    <button type="button" id="save-button" class="btn btn-primary" value="Сохранить">Сохранить</button>
+{#    <button id="save-button">Сохранить</button>#}
+    {% endif %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        var flaskHeaders = {{ headers|default('{}')|tojson|safe }};
+        var flaskData = {{ data|default('{}')|tojson|safe }};
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@13.1.0/dist/handsontable.full.min.css">
-<script src="https://cdn.jsdelivr.net/npm/handsontable@13.1.0/dist/handsontable.full.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="{{ url_for('static', filename='js/scripts_2_hot.js') }}"></script>
+        {#const flaskHeaders = JSON.parse('{{ headers|tojson }}');#}
+        {#const flaskData = JSON.parse('{{ data|tojson }}');#}
+        console.log(flaskHeaders)
+        console.log(flaskData)
+
+        // const parsedHeaders = JSON.parse(headers);
+        // const parsedData = JSON.parse(data);
+
+        const container = document.getElementById('excel-container');
+        const hot = new Handsontable(container, {
+            data: flaskData,
+            colHeaders: flaskHeaders,
+            language: 'ru-RU',
+            rowHeaders: true,
+            filters: true,
+            search: true,
+            comments: true,
+            licenseKey: 'non-commercial-and-evaluation',
+            contextMenu: true,
+            dropdownMenu: true,
+            multiColumnSorting: {
+                sortEmptyCells: true,
+                indicator: true,
+                headerAction: true,
+            },
+            manualRowMove: true,
+            manualColumnMove: true,
+            autoColumnSize: {
+                // keep 40% of columns in sync (the rest of columns: async)
+                syncLimit: '100%',
+                // when calculating column widths, use column headers
+                useHeaders: true,
+                // when calculating column widths, use 10 samples of the same length
+                samplingRatio: 0,
+                // when calculating column widths, allow duplicate samples
+                allowSampleDuplicates: true
+            },
+            dragToScroll: true,
+            manualColumnResize: true,
+            persistentState: true,
+            columns: [
+                { type: 'text' }, // НАИМЕНОВАНИЕ1
+                { type: 'text' }, // НАИМЕНОВАНИЕ2
+                { type: 'text' }, // ИЗГОТОВИТЕЛЬ
+                { type: 'text' }, // ТМ
+                { type: 'text' }, // МАРКА
+                { type: 'text' }, // МОДЕЛЬ
+                { type: 'text' }, // АРТ
+                { type: 'text' }, // СПТ
+                { type: 'numeric' }, // КОЛ-ВО
+                { type: 'numeric' }, // КОД
+                { type: 'text' }, // НАИМ
+                { type: 'numeric' }, // КОД ТНВД
+                { type: 'numeric' }, // ДОП КОД
+                { type: 'numeric' }, // ВЕС ШТ
+                {
+                    // $/ШТ
+                    type: 'numeric',
+                    numericFormat: {
+                        pattern: '0,0.00',
+                        culture: 'en-US',
+                    },
+                },
+                { type: 'numeric' }, // БР
+                { type: 'numeric' }, // НТ
+                {
+                    // $/КГ
+                    type: 'numeric',
+                    numericFormat: {
+                        pattern: '0,0.00',
+                        culture: 'en-US',
+                    },
+                },
+                {
+                    // ЦЕНА
+                    type: 'numeric',
+                    numericFormat: {
+                        pattern: '0,0.00',
+                        culture: 'ru-RU'
+                    },
+                },
+                { type: 'text' }, // МЕСТА
+                { type: 'text' }, // МЕСТ ЧАСТ
+                { type: 'numeric' }, // ЕСТЬ/НЕТ
+                { type: 'text' }, // КОД УП
+                { type: 'text' }, // ДОП КОД УП
+                { type: 'text' }, // КОД №1
+                { type: 'text' }, // СЕРТ №1
+                {
+                    // НАЧАЛО №1
+                    type: 'date',
+                    dateFormat: 'DD.MM.YYYY',
+                    correctFormat: true,
+                    defaultDate: '01.01.1900',
+                    datePickerConfig: {
+                        // First day of the week (0: Sunday, 1: Monday, etc)
+                        firstDay: 1,
+                        showWeekNumber: true,
+                        disableDayFn(date) {
+                            // Disable Sunday and Saturday
+                            return date.getDay() === 0 || date.getDay() === 6;
+                        }
+                    }
+                },
+                {
+                    // КОНЕЦ №1
+                    type: 'date',
+                    dateFormat: 'DD.MM.YYYY',
+                    correctFormat: true,
+                    defaultDate: '01.01.1900',
+                    datePickerConfig: {
+                        // First day of the week (0: Sunday, 1: Monday, etc)
+                        firstDay: 1,
+                        showWeekNumber: true,
+                        disableDayFn(date) {
+                            // Disable Sunday and Saturday
+                            return date.getDay() === 0 || date.getDay() === 6;
+                        }
+                    }
+                },
+                { type: 'text' }, // КОД №2
+                { type: 'text' }, // СЕРТ №2
+                {
+                    // НАЧАЛО №2
+                    type: 'date',
+                    dateFormat: 'DD.MM.YYYY',
+                    correctFormat: true,
+                    defaultDate: '01.01.1900',
+                    datePickerConfig: {
+                        // First day of the week (0: Sunday, 1: Monday, etc)
+                        firstDay: 1,
+                        showWeekNumber: true,
+                        disableDayFn(date) {
+                            // Disable Sunday and Saturday
+                            return date.getDay() === 0 || date.getDay() === 6;
+                        }
+                    }
+                },
+                {
+                    // КОНЕЦ №2
+                    type: 'date',
+                    dateFormat: 'DD.MM.YYYY',
+                    correctFormat: true,
+                    defaultDate: '01.01.1900',
+                    datePickerConfig: {
+                        // First day of the week (0: Sunday, 1: Monday, etc)
+                        firstDay: 1,
+                        showWeekNumber: true,
+                        disableDayFn(date) {
+                            // Disable Sunday and Saturday
+                            return date.getDay() === 0 || date.getDay() === 6;
+                        }
+                    }
+                },
+            ]
+        });
+
+        let isUpdating = false;
+
+        hot.addHook('afterChange', (changes, source) => {
+            if (source === 'edit' && !isUpdating) {
+                isUpdating = true;
+
+                const changeData = changes[0];
+                const rowIndex = changeData[0];
+                const colIndex = changeData[1];
+                const oldValue = changeData[2];
+                const newValue = changeData[3];
+
+                if (oldValue === newValue) {
+                    // Если значение ячейки не изменилось, завершаем функцию без отправки запроса на сервер
+                    isUpdating = false;
+                    return;
+                }
+
+                {#const columnName = headers[colIndex];#}
+                {#const rowData = hot.getData()[rowIndex];#}
+                {#const oldValue = rowData[colIndex];#}
+                {#const rowData = hot.getDataAtRow(rowIndex);#}
+
+                {#hot.modifyRowData(rowIndex, row => {
+                    const rowData = row.slice(); // Копируем данные строки
+
+                    // Обновляем значение ячейки
+                    rowData[colIndex] = newValue;
+
+                    return rowData; // Возвращаем обновленные данные строки
+                });#}
+
+                const rowData = hot.getDataAtRow(rowIndex);
+                //rowData[colIndex] = newValue;
+                //rowData.splice(colIndex, 1, newValue); // Заменяем значение ячейки
+
+                const requestData = {
+                    rowIndex: rowIndex,
+                    colIndex: colIndex,
+                    newValue: newValue,
+                    rowData: rowData,
+                    headers: flaskHeaders,
+                    oldValue: oldValue
+                    // oldValue: hot.getData()[rowIndex][colIndex]
+                };
+
+                // Отключаем обработчик события 'afterChange' перед отправкой запроса
+                //hot.removeHook('afterChange');
+
+                fetch('/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.rowData) {
+                            const updatedRowData = data.rowData;
+
+                            flaskData = hot.getData().map((row, index) => {
+                                if (index === rowIndex) {
+                                    return updatedRowData;
+                                }
+                                return row;
+                            });
+
+                          {#  hot.updateSettings({
+                                data: flaskData
+                            });#}
+
+                            hot.updateData(flaskData);
+
+                            // Собираем изменения для каждого столбца в строке
+                            //for (let col = 0; col < numberOfColumns; col++) {
+                            //    changes.push([rowIndex, col, updatedRowData[col]]);
+                            //}
+
+                            // Применяем изменения пакетно
+                            {#hot.batch(() => {
+                                const numberOfColumns = hot.countCols();
+                                const colIndexes = Array.from({length: numberOfColumns}, (_, i) => i);
+                                // Собираем изменения для каждого столбца в строке
+                                // const changes = colIndexes.map(col => [rowIndex, col, updatedRowData[col]]);
+
+                                //changes.forEach(([row, col, value]) => {
+                                //    hot.setDataAtRowProp(row, col, value, source);
+                                //});
+                                colIndexes.forEach(col => {
+                                    #}{#hot.setDataAtRowProp(rowIndex, col, updatedRowData[col], source);#}{#
+                                    hot.setDataAtCell(rowIndex, col, updatedRowData[col]);
+                                });
+
+                            });#}
+
+                            {#colIndexes.forEach(col => {
+                                hot.setDataAtRowProp(rowIndex, col, updatedRowData[col], 'edit');
+                            });#}
+
+                            // hot.setDataAtRowProp(rowIndex, colIndex, updatedRowData, 'edit')
+                            // hot.setDataAtRowProp(rowIndex, colIndexes, updatedRowData, 'edit'); // Обновляем все значения в строке за один раз
+
+                            console.log(rowIndex + 1)
+                            console.log(flaskHeaders)
+                            console.log(rowData)
+                            console.log(updatedRowData)
+
+                            hot.render();
+
+                            // Включаем обработчик события 'afterChange' после обновления данных
+                            // hot.addHook('afterChange');
+
+                            //for (let colIndex = 0; colIndex < updatedRowData.length; colIndex++) {
+                            //    hot.setDataAtCell(rowIndex, colIndex, updatedRowData[colIndex]);
+                            //}
+                        } else {
+                            console.log('Ошибка: отсутствует или некорректное значение rowData в ответе от сервера');
+                        }
+                        isUpdating = false;
+                    })
+                    .catch(error => {
+                        console.log('Ошибка при обновлении данных:', error);
+                        isUpdating = false; // Устанавливаем isUpdating в false в случае ошибки
+                    });
+            }
+        });
+
+        const searchField = document.querySelector('#search_field');
+        searchField.addEventListener('keyup', function(event) {
+            // get the `Search` plugin's instance
+            const search = hot.getPlugin('search');
+            // use the `Search` plugin's `query()` method
+            const queryResult = search.query(event.target.value);
+            console.log(queryResult);
+            hot.render();
+        });
+
+        document.getElementById('save-button').addEventListener('click', () => {
+            const exportData = hot.getData();
+            const exportHeaders = hot.getColHeader();
+
+            const formData = new FormData();
+            formData.append('data', JSON.stringify(exportData));
+            formData.append('headers', JSON.stringify(exportHeaders));
+
+            fetch('/download', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data.message);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        });
+
+        document.getElementById('usdBtn').addEventListener('click', () => {
+            convertCurrency('USD');
+        });
+
+        document.getElementById('krwBtn').addEventListener('click', () => {
+            convertCurrency('KRW');
+        });
+
+        document.getElementById('jpyBtn').addEventListener('click', () => {
+            convertCurrency('JPY');
+        });
+
+        document.getElementById('cnyBtn').addEventListener('click', () => {
+            convertCurrency('CNY');
+        });
+
+        function convertCurrency(currency) {
+            const requestData = {
+                currency: currency,
+                headers: flaskHeaders,
+                data: flaskData
+            };
+
+            fetch('/convert_currency', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.headers && data.data) {
+                    flaskHeaders = data.headers;
+                    flaskData = data.data;
+
+                    console.log(flaskHeaders);
+                    console.log(flaskData);
+
+                    hot.updateSettings({
+                        colHeaders: flaskHeaders,
+                        data: flaskData
+                    });
+
+                    hot.render();
+                } else {
+                    console.log('Ошибка: отсутствуют или некорректные значения headers и data в ответе от сервера');
+                }
+            })
+            .catch(error => {
+                console.log('Ошибка при конвертации валюты:', error);
+            });
+        }
+    </script>
+    {#    <script src="{{ url_for('static', filename='/js/scripts.js') }}"></script>#}
+{#    <script src="{{ url_for('static', filename='js/hot_config.js') }}"></script>#}
+{#    <script src="{{ url_for('static', filename='js/scripts_3.js') }}"></script>#}
+</body>
+</html>

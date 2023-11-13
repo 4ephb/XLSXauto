@@ -1,9 +1,9 @@
+# -*- coding: cp1251 -*-
 ##########################################
 #
 # About
 #
 ##########################################
-
 import os
 import re
 from flask import Flask, render_template, redirect, request, url_for, flash, jsonify, json
@@ -28,6 +28,8 @@ from xmltodict import parse
 import requests
 from decimal import Decimal, ROUND_UP
 
+import openpyxl
+import xlsxwriter
 
 ##########################################
 # init:
@@ -61,7 +63,7 @@ secret_key(app)
 
 login_manager.login_view = 'login'
 
-# РЎРѕР·РґР°РЅРёРµ РїРѕРґРєР»СЋС‡РµРЅРёСЏ Рє Р±Р°Р·Рµ РґР°РЅРЅС‹С…
+# Создание подключения к базе данных
 engine = create_engine('sqlite:///' + os.path.join(basedir, 'db/main.db'))
 
 
@@ -73,12 +75,12 @@ class Certificates(Base):
     """
     PARENT
     CHILD_1: Designations2
-        РћРґРЅР° Р·Р°РїРёСЃСЊ РІ Certificates РјРѕР¶РµС‚ РёРјРµС‚СЊ РЅРµСЃРєРѕР»СЊРєРѕ Р·Р°РїРёСЃРµР№ РІ Designations2.
-        РЎРІСЏР·Р°РЅР° СЃ РјРѕРґРµР»СЊСЋ Certificates С‡РµСЂРµР· РІРЅРµС€РЅРёР№ РєР»СЋС‡ cert_id.
+        Одна запись в Certificates может иметь несколько записей в Designations2.
+        Связана с моделью Certificates через внешний ключ cert_id.
 
     CHILD_2: TradeMarks
-        РћРґРЅР° Р·Р°РїРёСЃСЊ РІ Certificates РјРѕР¶РµС‚ РёРјРµС‚СЊ РЅРµСЃРєРѕР»СЊРєРѕ Р·Р°РїРёСЃРµР№ РІ TradeMarks.
-        РЎРІСЏР·Р°РЅР° СЃ РјРѕРґРµР»СЊСЋ Certificates С‡РµСЂРµР· РІРЅРµС€РЅРёР№ РєР»СЋС‡ cert_id.
+        Одна запись в Certificates может иметь несколько записей в TradeMarks.
+        Связана с моделью Certificates через внешний ключ cert_id.
     """
     __tablename__ = 'certificates'
     id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
@@ -94,11 +96,11 @@ class Designations2(Base):
     """
     CHILD_1
     PARENT: Certificates
-    РЎРІСЏР·Р°РЅР° СЃ РјРѕРґРµР»СЊСЋ Certificates С‡РµСЂРµР· РІРЅРµС€РЅРёР№ РєР»СЋС‡ cert_id.
-    РћРґРЅР° Р·Р°РїРёСЃСЊ РІ Designations2 РјРѕР¶РµС‚ Р±С‹С‚СЊ СЃРІСЏР·Р°РЅР° СЃ РѕРґРЅРѕР№ Р·Р°РїРёСЃСЊСЋ РІ Certificates.
-    РћРґРЅРѕРЅР°РїСЂР°РІР»РµРЅРЅР°СЏ СЃРІСЏР·СЊ: РїРѕР»СѓС‡РёС‚СЊ РѕР±СЉРµРєС‚ Certificates РёР· РѕР±СЉРµРєС‚Р° Designations2 (РЅРµ РЅР°РѕР±РѕСЂРѕС‚).
-    РЎРІСЏР·СЊ РѕРїСЂРµРґРµР»РµРЅР° СЃ РїРѕРјРѕС‰СЊСЋ Р°С‚СЂРёР±СѓС‚Р° certificate, РєРѕС‚РѕСЂС‹Р№ СѓРєР°Р·С‹РІР°РµС‚ РЅР° РѕР±СЉРµРєС‚ Certificates,
-    СЃРІСЏР·Р°РЅРЅС‹Р№ СЃ РґР°РЅРЅРѕР№ Р·Р°РїРёСЃСЊСЋ Designations2.
+    Связана с моделью Certificates через внешний ключ cert_id.
+    Одна запись в Designations2 может быть связана с одной записью в Certificates.
+    Однонаправленная связь: получить объект Certificates из объекта Designations2 (не наоборот).
+    Связь определена с помощью атрибута certificate, который указывает на объект Certificates,
+    связанный с данной записью Designations2.
     """
     __tablename__ = 'designations_2'
     id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
@@ -114,11 +116,11 @@ class TradeMarks(Base):
     """
     CHILD_2
     PARENT: Certificates
-    РЎРІСЏР·Р°РЅР° СЃ РјРѕРґРµР»СЊСЋ Certificates С‡РµСЂРµР· РІРЅРµС€РЅРёР№ РєР»СЋС‡ cert_id.
-    РћРґРЅР° Р·Р°РїРёСЃСЊ РІ TradeMarks РјРѕР¶РµС‚ Р±С‹С‚СЊ СЃРІСЏР·Р°РЅР° СЃ РѕРґРЅРѕР№ Р·Р°РїРёСЃСЊСЋ РІ Certificates.
-    РћРґРЅРѕРЅР°РїСЂР°РІР»РµРЅРЅР°СЏ СЃРІСЏР·СЊ: РїРѕР»СѓС‡РёС‚СЊ РѕР±СЉРµРєС‚ Certificates РёР· РѕР±СЉРµРєС‚Р° TradeMarks (РЅРµ РЅР°РѕР±РѕСЂРѕС‚).
-    РЎРІСЏР·СЊ РѕРїСЂРµРґРµР»РµРЅР° СЃ РїРѕРјРѕС‰СЊСЋ Р°С‚СЂРёР±СѓС‚Р° certificate, РєРѕС‚РѕСЂС‹Р№ СѓРєР°Р·С‹РІР°РµС‚ РЅР° РѕР±СЉРµРєС‚ Certificates,
-    СЃРІСЏР·Р°РЅРЅС‹Р№ СЃ РґР°РЅРЅРѕР№ Р·Р°РїРёСЃСЊСЋ TradeMarks.
+    Связана с моделью Certificates через внешний ключ cert_id.
+    Одна запись в TradeMarks может быть связана с одной записью в Certificates.
+    Однонаправленная связь: получить объект Certificates из объекта TradeMarks (не наоборот).
+    Связь определена с помощью атрибута certificate, который указывает на объект Certificates,
+    связанный с данной записью TradeMarks.
     """
     __tablename__ = 'trade_marks'
     id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
@@ -131,7 +133,7 @@ class TradeMarks(Base):
 
 class Designations1(Base):
     """
-    РњРѕРґРµР»СЊ Designations1 РЅРµ РёРјРµРµС‚ СЃРІСЏР·РµР№ СЃ РґСЂСѓРіРёРјРё РјРѕРґРµР»СЏРјРё.
+    Модель Designations1 не имеет связей с другими моделями.
     """
     __tablename__ = 'designations_1'
     id = Column(Integer, unique=True, nullable=False, primary_key=True, autoincrement=True)
@@ -197,41 +199,41 @@ def upload():
     if request.method == 'POST':
         file = request.files['file']
         if file:
-            df = pd.read_excel(file)  # Р§С‚РµРЅРёРµ РґР°РЅРЅС‹С… РёР· Р·Р°РіСЂСѓР¶РµРЅРЅРѕРіРѕ С„Р°Р№Р»Р° xlsx
-            df = create_result_df(df)  # РџСЂРµРѕР±СЂР°Р·СѓРµРј РІС…РѕРґСЏС‰СѓСЋ С‚Р°Р±Р»РёС†Сѓ РІ result С‚Р°Р±Р»РёС†Сѓ
+            df = pd.read_excel(file)  # Чтение данных из загруженного файла xlsx
+            df = create_result_df(df)  # Преобразуем входящую таблицу в result таблицу
 
-            # РџСЂРёРјРµРЅРµРЅРёРµ С„СѓРЅРєС†РёР№ С‡РёСЃС‚РєРё РЅР° РЅР°Р»РёС‡РёРµ Р»Р°С‚РёРЅРёС†С‹ Рє РґР°РЅРЅС‹Рј СЃС‚РѕР»Р±С†РѕРІ
-            df['РќРђРРњР•РќРћР’РђРќРР•2'] = df['РќРђРРњР•РќРћР’РђРќРР•2'].astype(str).apply(clean_lat_symbols)
-            # РџСЂРёРјРµРЅРµРЅРёРµ С„СѓРЅРєС†РёР№ С‡РёСЃС‚РєРё РЅР° РЅР°Р»РёС‡РёРµ РєРёСЂРёР»Р»РёС†С‹ Рє РґР°РЅРЅС‹Рј СЃС‚РѕР»Р±С†РѕРІ
-            df['РўРњ'] = df['РўРњ'].astype(str).apply(clean_cyr_symbols)
+            # Применение функций чистки на наличие латиницы к данным столбцов
+            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].astype(str).apply(clean_lat_symbols)
+            # Применение функций чистки на наличие кириллицы к данным столбцов
+            df['ТМ'] = df['ТМ'].astype(str).apply(clean_cyr_symbols)
 
-            # РџСЂРёРјРµРЅРµРЅРёРµ С„СѓРЅРєС†РёР№ С‡РёСЃС‚РєРё РЅР° РЅР°Р»РёС‡РёРµ РјРЅРѕР¶РµСЃС‚РІРµРЅРЅС‹С…/Р»РµРІС‹С…/РїСЂР°РІС‹С… РїСЂРѕР±РµР»РѕРІ
-            df['РќРђРРњР•РќРћР’РђРќРР•2'] = df['РќРђРРњР•РќРћР’РђРќРР•2'].map(clean_spaces)
-            df['РўРњ'] = df['РўРњ'].map(clean_spaces)
+            # Применение функций чистки на наличие множественных/левых/правых пробелов
+            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].map(clean_spaces)
+            df['ТМ'] = df['ТМ'].map(clean_spaces)
 
-            # РџСЂРѕС…РѕРґРёРј РїРѕ Р·РЅР°С‡РµРЅРёСЏРј РєРѕР»РѕРЅРєРё 'РќРђРРњР•РќРћР’РђРќРР•2' Рё РѕР±РЅРѕРІР»СЏРµРј РґР°РЅРЅС‹Рµ СЃ РїРѕРјРѕС‰СЊСЋ update()
+            # Проходим по значениям колонки 'НАИМЕНОВАНИЕ2' и обновляем данные с помощью update()
             for index, row in df.iterrows():
-                col_index = df.columns.get_loc('РќРђРРњР•РќРћР’РђРќРР•2')
+                col_index = df.columns.get_loc('НАИМЕНОВАНИЕ2')
                 request_data = {
                     'rowIndex': index,
                     'colIndex': col_index,
                     'rowData': row.tolist(),
                     'headers': df.columns.tolist()
                 }
-                # Р’С‹Р·С‹РІР°РµРј С„СѓРЅРєС†РёСЋ update() Рё РїРѕР»СѓС‡Р°РµРј РѕР±РЅРѕРІР»РµРЅРЅСѓСЋ СЃС‚СЂРѕРєСѓ
+                # Вызываем функцию update() и получаем обновленную строку
                 with app.test_request_context(json=request_data, method='POST'):
                     updated_row_data = update().get_json()['rowData']
                 df.loc[index] = updated_row_data
 
-            headers = df.columns.tolist()  # Р—Р°РіРѕР»РѕРІРєРё С‚Р°Р±Р»РёС†С‹ РІС…РѕРґСЏС‰РµРіРѕ С„Р°Р№Р»Р°
-            data = df.values.tolist()  # Р”Р°РЅРЅС‹Рµ С‚Р°Р±Р»РёС†С‹ РІС…РѕРґСЏС‰РµРіРѕ С„Р°Р№Р»Р°
+            headers = df.columns.tolist()  # Заголовки таблицы входящего файла
+            data = df.values.tolist()  # Данные таблицы входящего файла
 
             # return {'headers': headers, 'data': data}
             return render_template('edit.html', headers=headers, data=data)
             # return redirect(url_for('edit2', headers=headers, data=data))
     else:
-        # РѕР±СЂР°Р±РѕС‚РєР° GET Р·Р°РїСЂРѕСЃР°
-        # РІРѕР·РІСЂР°С‰РµРЅРёРµ СЃС‚СЂР°РЅРёС†С‹ СЃ С„РѕСЂРјРѕР№ Р·Р°РіСЂСѓР·РєРё С„Р°Р№Р»Р°
+        # обработка GET запроса
+        # возвращение страницы с формой загрузки файла
         return render_template('edit.html')
 
 
@@ -241,39 +243,35 @@ def upload_2():
     if request.method == 'POST':
         file = request.files['file']
         if file:
-            df = pd.read_excel(file)  # Р§С‚РµРЅРёРµ РґР°РЅРЅС‹С… РёР· Р·Р°РіСЂСѓР¶РµРЅРЅРѕРіРѕ С„Р°Р№Р»Р° xlsx
-            df = create_result_df(df)  # РџСЂРµРѕР±СЂР°Р·СѓРµРј РІС…РѕРґСЏС‰СѓСЋ С‚Р°Р±Р»РёС†Сѓ РІ result С‚Р°Р±Р»РёС†Сѓ
-
-            # РџСЂРёРјРµРЅРµРЅРёРµ С„СѓРЅРєС†РёР№ С‡РёСЃС‚РєРё РЅР° РЅР°Р»РёС‡РёРµ Р»Р°С‚РёРЅРёС†С‹ Рє РґР°РЅРЅС‹Рј СЃС‚РѕР»Р±С†РѕРІ
-            df['РќРђРРњР•РќРћР’РђРќРР•2'] = df['РќРђРРњР•РќРћР’РђРќРР•2'].astype(str).apply(clean_lat_symbols)
-            # РџСЂРёРјРµРЅРµРЅРёРµ С„СѓРЅРєС†РёР№ С‡РёСЃС‚РєРё РЅР° РЅР°Р»РёС‡РёРµ РєРёСЂРёР»Р»РёС†С‹ Рє РґР°РЅРЅС‹Рј СЃС‚РѕР»Р±С†РѕРІ
-            df['РўРњ'] = df['РўРњ'].astype(str).apply(clean_cyr_symbols)
-
-            # РџСЂРёРјРµРЅРµРЅРёРµ С„СѓРЅРєС†РёР№ С‡РёСЃС‚РєРё РЅР° РЅР°Р»РёС‡РёРµ РјРЅРѕР¶РµСЃС‚РІРµРЅРЅС‹С…/Р»РµРІС‹С…/РїСЂР°РІС‹С… РїСЂРѕР±РµР»РѕРІ
-            df['РќРђРРњР•РќРћР’РђРќРР•2'] = df['РќРђРРњР•РќРћР’РђРќРР•2'].map(clean_spaces)
-            df['РўРњ'] = df['РўРњ'].map(clean_spaces)
-
-            # РџСЂРѕС…РѕРґРёРј РїРѕ Р·РЅР°С‡РµРЅРёСЏРј РєРѕР»РѕРЅРєРё 'РќРђРРњР•РќРћР’РђРќРР•2' Рё РѕР±РЅРѕРІР»СЏРµРј РґР°РЅРЅС‹Рµ СЃ РїРѕРјРѕС‰СЊСЋ update()
+            df = pd.read_excel(file)  # Чтение данных из загруженного файла xlsx
+            df = create_result_df(df)  # Преобразуем входящую таблицу в result таблицу
+            # Применение функций чистки на наличие латиницы к данным столбцов
+            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].astype(str).apply(clean_lat_symbols)
+            # Применение функций чистки на наличие кириллицы к данным столбцов
+            df['ТМ'] = df['ТМ'].astype(str).apply(clean_cyr_symbols)
+            # Применение функций чистки на наличие множественных/левых/правых пробелов
+            df['НАИМЕНОВАНИЕ2'] = df['НАИМЕНОВАНИЕ2'].map(clean_spaces)
+            df['ТМ'] = df['ТМ'].map(clean_spaces)
+            # Проходим по значениям колонки 'НАИМЕНОВАНИЕ2' и обновляем данные с помощью update()
             for index, row in df.iterrows():
-                col_index = df.columns.get_loc('РќРђРРњР•РќРћР’РђРќРР•2')
+                col_index = df.columns.get_loc('НАИМЕНОВАНИЕ2')
                 request_data = {
                     'rowIndex': index,
                     'colIndex': col_index,
                     'rowData': row.tolist(),
                     'headers': df.columns.tolist()
                 }
-                # Р’С‹Р·С‹РІР°РµРј С„СѓРЅРєС†РёСЋ update() Рё РїРѕР»СѓС‡Р°РµРј РѕР±РЅРѕРІР»РµРЅРЅСѓСЋ СЃС‚СЂРѕРєСѓ
+                # Вызываем функцию update() и получаем обновленную строку
                 with app.test_request_context(json=request_data, method='POST'):
                     updated_row_data = update().get_json()['rowData']
                 df.loc[index] = updated_row_data
-
-            headers = df.columns.tolist()  # Р—Р°РіРѕР»РѕРІРєРё С‚Р°Р±Р»РёС†С‹ РІС…РѕРґСЏС‰РµРіРѕ С„Р°Р№Р»Р°
-            data = df.values.tolist()  # Р”Р°РЅРЅС‹Рµ С‚Р°Р±Р»РёС†С‹ РІС…РѕРґСЏС‰РµРіРѕ С„Р°Р№Р»Р°
-
+            headers = df.columns.tolist()  # Заголовки таблицы входящего файла
+            data = df.values.tolist()  # Данные таблицы входящего файла
+            # headers = headers[1:33]
             return render_template('edit_hot.html', headers=headers, data=data)
     else:
-        # РѕР±СЂР°Р±РѕС‚РєР° GET Р·Р°РїСЂРѕСЃР°
-        # РІРѕР·РІСЂР°С‰РµРЅРёРµ СЃС‚СЂР°РЅРёС†С‹ СЃ С„РѕСЂРјРѕР№ Р·Р°РіСЂСѓР·РєРё С„Р°Р№Р»Р°
+        # обработка GET запроса
+        # возвращение страницы с формой загрузки файла
         return render_template('edit_hot.html')
 
 
@@ -359,20 +357,67 @@ def page_not_found(error):
 @cross_origin()
 def update():
     request_data = request.get_json(force=True)
-    rowIndex = int(request_data['rowIndex'])
-    colIndex = int(request_data['colIndex'])
-    cellData = request_data.get('cellData')
+    rowIndex = request_data['rowIndex']
+    colIndex = request_data['colIndex']
+    newValue = request_data.get('newValue')
     rowData = request_data['rowData']
-    # headers = request_data['headers']
     headers = request_data.get('headers', [])
+    oldValue = request_data.get('oldValue')
+    print(oldValue)
+    print(rowData[colIndex])
+    print(newValue)
+    # headers = request_data['headers']
 
-    upd_rowData = route_by_columns(rowIndex, colIndex, cellData, rowData, headers)
-    # upd_rowData = route_by_columns(rowIndex, colIndex, rowData, headers)
+    # # Проверяем, были ли данные уже обновлены
+    # if rowData[colIndex] == oldValue:
+    # # if newValue == oldValue:
+    #     print(f'Данные не обновлялись!')
+    #     return jsonify({'success': True})
 
-    # РЎРѕР·РґР°РЅРёРµ РѕС‚РІРµС‚Р° СЃ РѕР±РЅРѕРІР»РµРЅРЅС‹РјРё РґР°РЅРЅС‹РјРё
+    print(f'Строка: {rowIndex + 1} | Столбец: {colIndex + 1}\n'
+          f'Данные заголовков: {headers}\n'
+          f'Данные {rowIndex + 1}-й строки: {rowData}\n'
+          f'Данные ячейки: {newValue}')
+
+    upd_rowData = route_by_columns(rowIndex, colIndex, newValue, rowData, headers)
+    # Создание ответа с обновленными данными
     response_data = {'status': 'success', 'rowIndex': rowIndex, 'rowData': upd_rowData}
-
+    # response_data = json.dumps(response_data)
     return jsonify(response_data)
+
+
+@app.route('/download', methods=['POST'])
+@login_required
+@cross_origin()
+def download():
+    """
+    Сохранение данных в Excel файл и
+    :return: JSON response
+    """
+    if request.method == 'POST':
+        # Получение заголовков
+        headers = request.form.get('headers')
+        headers = json.loads(headers)
+
+        # Получение данных таблицы
+        data = request.form.get('data')
+        data = json.loads(data)
+
+        # # Вывод в консоль
+        # print(f'\nHeaders: {headers}')
+        # print(f'Data: {data}')
+
+        df = pd.DataFrame(data, columns=headers)
+        df.to_excel('Result_.xlsx', engine='xlsxwriter', index=False)
+
+        # output = io.BytesIO()
+        # writer = pd.ExcelWriter(output, engine='xlsxwriter')
+        # df.to_excel(writer, sheet_name='Sheet1', index=False)
+        # writer.save()
+        # output.seek(0)
+
+        return jsonify({'message': 'Данные успешно сохранены!'})
+        # return send_file(output, as_attachment=True, download_name='output.xlsx')
 
 
 @app.route('/save', methods=['POST'])
@@ -380,25 +425,25 @@ def update():
 @cross_origin()
 def save():
     """
-    РЎРѕС…СЂР°РЅРµРЅРёРµ РґР°РЅРЅС‹С… РІ Excel С„Р°Р№Р» Рё
+    Сохранение данных в Excel файл и
     :return: JSON response
     """
-    # РџРѕР»СѓС‡РёС‚СЊ Р·Р°РіРѕР»РѕРІРєРё
+    # Получить заголовки
     headers = request.form.get('headers')
     headers = json.loads(headers)
 
-    # РџРѕР»СѓС‡РёС‚СЊ РґР°РЅРЅС‹Рµ СЃРѕ СЃС‚СЂР°РЅРёС†С‹
+    # Получить данные со страницы
     data = request.form.get('data')
     data = json.loads(data)
 
     print(f'\nHeaders: {headers}')
     print(f'Data: {data}')
 
-    # Р—Р°РїРёСЃСЊ РґР°РЅРЅС‹С… РІ С„Р°Р№Р»
-    df = pd.DataFrame(data, columns=headers[:32])  # Р­С‚РѕС‚ СЃСЂРµР· РЅР°РґРѕ РїРѕР»РЅРѕСЃС‚СЊСЋ СѓСЃС‚СЂР°РЅРёС‚СЊ. request С‚СЏРЅРµС‚ 64 Р·Р°РіРѕР»РѕРІРєР°.
+    # Запись данных в файл
+    df = pd.DataFrame(data, columns=headers[:32])  # Этот срез надо полностью устранить. request тянет 64 заголовка.
     df.to_excel('Result_.xlsx', index=False)
 
-    return jsonify({'message': 'Р”Р°РЅРЅС‹Рµ СѓСЃРїРµС€РЅРѕ СЃРѕС…СЂР°РЅРµРЅС‹!'})
+    return jsonify({'message': 'Данные успешно сохранены!'})
 
 
 curr_coeff = 1
@@ -411,9 +456,13 @@ def convert_currency():
     global curr_coeff
     default_currency_code = 'USD'
     rates = get_rates()
-    currency_code = request.form.get('currency', default=default_currency_code)
+    # currency_code = request.form.get('currency', default=default_currency_code)
+    request_data = request.get_json(force=True)
+    currency_code = request_data.get('currency')
+    headers = request_data.get('headers', [])
+    data = request_data.get('data')
 
-    # РџСЂРµРѕР±СЂР°Р·СѓРµРј РєСѓСЂСЃ РІР°Р»СЋС‚С‹ Рє РґРѕР»Р»Р°СЂСѓ
+    # Преобразуем курс валюты к доллару
     rate = rates[currency_code]['Value'] / rates[default_currency_code]['Value']
     if currency_code == 'KRW' and default_currency_code == 'USD':
         rate = rate / 1000
@@ -423,42 +472,47 @@ def convert_currency():
 
     print(f'{currency_code}\{default_currency_code}: {rate}')
 
-    # РџРѕР»СѓС‡Р°РµРј Р·Р°РіРѕР»РѕРІРєРё
-    headers = request.form.get('headers')
-    headers = json.loads(headers)
+    print(currency_code)
+    print(headers)
+    print(data)
 
-    # РџРѕР»СѓС‡Р°РµРј РґР°РЅРЅС‹Рµ СЃРѕ СЃС‚СЂР°РЅРёС†С‹
-    data = request.form.get('data')
-    data = json.loads(data)
+    # # Получаем заголовки
+    # headers = request.form.get('headers')
+    # headers = json.loads(headers)
+    # print(f'rthygrthsrth{headers}')
+    #
+    # # Получаем данные со страницы
+    # data = request.form.get('data')
+    # data = json.loads(data)
 
-    # Р—Р°РїРёСЃСЊ РґР°РЅРЅС‹С… РІ DF
-    df = pd.DataFrame(data, columns=headers[:32])
+    # Запись данных в DF
+    df = pd.DataFrame(data, columns=headers)
 
     # print(f'\nHeaders: {headers}')
     # print(f'Data: {data}')
 
-    # # Р’С‹РІРѕРґ Р·Р°РіРѕР»РѕРІРєРѕРІ
-    # print("Р—Р°РіРѕР»РѕРІРєРё:")
+    # # Вывод заголовков
+    # print("Заголовки:")
     # for header in headers:
     #     print(header)
     #
-    # # Р’С‹РІРѕРґ РґР°РЅРЅС‹С…
-    # print("Р”Р°РЅРЅС‹Рµ:")
+    # # Вывод данных
+    # print("Данные:")
     # print(df)
 
     data_rows = []
     for index, row in df.iterrows():
-        quantity = row['РљРћР›-Р’Рћ']
-        gross_weight = row['Р‘Р ']
-        price_per_kg = row['$/РљР“']
+        quantity = row['КОЛ-ВО']
+        gross_weight = row['БР']
+        price_per_kg = row['$/КГ']
         updated_row_data = calculations(headers, row, quantity, gross_weight, price_per_kg)
         data_rows.append(updated_row_data)
 
 
-    updated_df = pd.DataFrame(data_rows, columns=headers[:32])
+    updated_df = pd.DataFrame(data_rows, columns=headers)
 
     # for index, row in updated_df.iterrows():
-    #     col_index = updated_df.columns.get_loc('РќРђРРњР•РќРћР’РђРќРР•2')
+    #     col_index = updated_df.columns.get_loc('НАИМЕНОВАНИЕ2')
     #     request_data = {
     #         'rowIndex': index,
     #         'colIndex': col_index,
@@ -469,8 +523,8 @@ def convert_currency():
     #         updated_row_data = update().get_json().get('rowData')
     #     updated_df.loc[index] = updated_row_data
 
-    headers = updated_df.columns.tolist()  # Р—Р°РіРѕР»РѕРІРєРё С‚Р°Р±Р»РёС†С‹ РІС…РѕРґСЏС‰РµРіРѕ С„Р°Р№Р»Р°
-    data = updated_df.values.tolist()  # Р”Р°РЅРЅС‹Рµ С‚Р°Р±Р»РёС†С‹ РІС…РѕРґСЏС‰РµРіРѕ С„Р°Р№Р»Р°
+    headers = updated_df.columns.tolist()  # Заголовки таблицы входящего файла
+    data = updated_df.values.tolist()  # Данные таблицы входящего файла
     result = {'headers': headers, 'data': data}
     # print(result)
     return jsonify(result)
@@ -504,34 +558,36 @@ def calculate_currency(amount, rate):
 
 
 def get_cert_info(engine, headers, rowData, naim_value, tm_value):
-    # РџСЂРёРјРµРЅСЏРµРј С„СѓРЅРєС†РёСЋ convert_character_to_space Рє Р·РЅР°С‡РµРЅРёСЏРј naim_value Рё tm_value
+    print(f'\n2. Получаем данные сертификата:')
+    # Применяем функцию convert_character_to_space к значениям naim_value и tm_value
     cleaned_naim_value = convert_character_to_space(naim_value)
     cleaned_tm_value = convert_character_to_space(tm_value).lower()
 
-    # Р§РёСЃС‚РєР° РґР°РЅРЅС‹С… СЃ РїРѕРјРѕС‰СЊСЋ С„СѓРЅРєС†РёРё stem_porter()
+    # Чистка данных с помощью функции stem_porter()
     cleaned_naim_value = stem_porter(cleaned_naim_value)
     # stem_tm_value = stem_porter(cleaned_tm_value)
 
-    # Р§РёСЃС‚РєР° РґР°РЅРЅС‹С… СЃ РїРѕРјРѕС‰СЊСЋ С„СѓРЅРєС†РёРё clean_all_spaces()
+    # Чистка данных с помощью функции clean_all_spaces()
     cleaned_tm_value = clean_all_spaces(cleaned_tm_value)
 
-    print(f'cleaned_naim_value = {cleaned_naim_value}')
-    print(f'cleaned_tm_value = {cleaned_tm_value}\n')
+    print(f'\tОчищенные данные для поиска:\n'
+          f'\t\t{cleaned_naim_value}\n'
+          f'\t\t{cleaned_tm_value}')
 
-    # РЎРѕР·РґР°РЅРёРµ СЃРµСЃСЃРёРё
+    # Создание сессии
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    # РџСЂРёРјРµРЅСЏРµРј С„СѓРЅРєС†РёСЋ convert_character_to_space Рє РєР°Р¶РґРѕРјСѓ Р·РЅР°С‡РµРЅРёСЋ СЃС‚РѕР»Р±С†Р° Designations2.designation Рё TradeMarks.trade_mark
+    # Применяем функцию convert_character_to_space к каждому значению столбца Designations2.designation и TradeMarks.trade_mark
     cleaned_designation = func.convert_character_to_space(Designations2.designation)
     cleaned_trademarks = func.convert_character_to_space(TradeMarks.trade_mark)
-    # РџСЂРёРјРµРЅСЏРµРј С„СѓРЅРєС†РёСЋ stem_porter Рє РєР°Р¶РґРѕРјСѓ Р·РЅР°С‡РµРЅРёСЋ СЃС‚РѕР»Р±С†Р° Designations2.designation Рё TradeMarks.trade_mark
+    # Применяем функцию stem_porter к каждому значению столбца Designations2.designation и TradeMarks.trade_mark
     stem_designation = func.stem_porter(cleaned_designation)
     stem_trademarks = func.stem_porter(cleaned_trademarks)
-    # РџСЂРёРјРµРЅСЏРµРј С„СѓРЅРєС†РёСЋ clean_all_spaces Рє РєР°Р¶РґРѕРјСѓ Р·РЅР°С‡РµРЅРёСЋ СЃС‚РѕР»Р±С†Р° TradeMarks.trade_mark
+    # Применяем функцию clean_all_spaces к каждому значению столбца TradeMarks.trade_mark
     cleaned_trademarks = func.clean_all_spaces(stem_trademarks)
 
-    # РќСѓ СЌС‚Рѕ Р°Р»С…РёРјРёСЏ)))
+    # Ну это алхимия)))
     matching_records = session.query(Designations1.designation,
                                      Designations2.designation,
                                      TradeMarks.manufacturer,
@@ -550,36 +606,40 @@ def get_cert_info(engine, headers, rowData, naim_value, tm_value):
         stem_designation == cleaned_naim_value,
         cleaned_trademarks == cleaned_tm_value).distinct().all()
 
-    # Р’С‹РІРѕРґ РЅР°Р№РґРµРЅРЅС‹С… Р·РЅР°С‡РµРЅРёР№ РІ РєРѕРЅСЃРѕР»СЊ
+    # Вывод найденных значений в консоль
     if len(matching_records) > 0:
+        print('\tНайдены совпадающие записи:')
+
+        i = 1
         for record in matching_records:
-            print(f'{record}\n')
+            print(f'\t\t{i}. {record}')
+            i+= 1
+
+        # Получаем правильный $/КГ в зависимости от TradeMarks.category
+        matching_records = get_coefficient(matching_records)
+        # Заголовки таблицы в которых необходимо заменить полученные значения
+        data_headers = ['НАИМЕНОВАНИЕ1', 'НАИМЕНОВАНИЕ2', 'ИЗГОТОВИТЕЛЬ', 'ТМ', 'КОД ТНВД', '$/КГ', 'КОД №1', 'СЕРТ №1',
+                        'НАЧАЛО №1', 'КОНЕЦ №1']
+        # Подставляем значения в правильное место наполняемой строки
+        upd_rowData = string_collector(rowData, headers, matching_records, data_headers)
+        return upd_rowData
     else:
-        print('РќРµ РЅР°Р№РґРµРЅРѕ СЃРѕРІРїР°РґР°СЋС‰РёС… Р·Р°РїРёСЃРµР№!')
-        return rowData
+        print('\tНе найдено совпадающих записей!')
+        data_headers = ['НАИМЕНОВАНИЕ1', 'НАИМЕНОВАНИЕ2', 'ИЗГОТОВИТЕЛЬ', 'ТМ', 'КОД ТНВД', '$/КГ', 'КОД №1', 'СЕРТ №1',
+                        'НАЧАЛО №1', 'КОНЕЦ №1']
+        matching_records = ['', naim_value, '', tm_value, '', '', '', '', '', '']
+        upd_rowData = string_collector(rowData, headers, matching_records, data_headers)
+        return upd_rowData
 
-    # РџРѕР»СѓС‡Р°РµРј РїСЂР°РІРёР»СЊРЅС‹Р№ $/РљР“ РІ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё РѕС‚ TradeMarks.category
-    matching_records = get_coefficient(matching_records)
-
-    # Р’С‹РІРѕРґ РѕС‚СЃРѕСЂС‚РёСЂРѕРІР°РЅРЅС‹С… Р·РЅР°С‡РµРЅРёР№ РІ РєРѕРЅСЃРѕР»СЊ
-    if len(matching_records) > 0:
-        for record in matching_records:
-            print(f'{record} ')
-
-    # Р—Р°РіРѕР»РѕРІРєРё С‚Р°Р±Р»РёС†С‹ РІ РєРѕС‚РѕСЂС‹С… РЅРµРѕР±С…РѕРґРёРјРѕ Р·Р°РјРµРЅРёС‚СЊ РїРѕР»СѓС‡РµРЅРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ
-    data_headers = ['РќРђРРњР•РќРћР’РђРќРР•1', 'РќРђРРњР•РќРћР’РђРќРР•2', 'РР—Р“РћРўРћР’РРўР•Р›Р¬', 'РўРњ', 'РљРћР” РўРќР’Р”', '$/РљР“', 'РљРћР” в„–1', 'РЎР•Р Рў в„–1', 'РќРђР§РђР›Рћ в„–1', 'РљРћРќР•Р¦ в„–1']
-    # РџРѕРґСЃС‚Р°РІР»СЏРµРј Р·РЅР°С‡РµРЅРёСЏ РІ РїСЂР°РІРёР»СЊРЅРѕРµ РјРµСЃС‚Рѕ РЅР°РїРѕР»РЅСЏРµРјРѕР№ СЃС‚СЂРѕРєРё
-    upd_rowData = string_collector(rowData, headers, matching_records, data_headers)
-
-    # РЎРјРѕС‚СЂРёРј РґР°РЅРЅС‹Рµ РёР· Designations2
+    # Смотрим данные из Designations2
     # designations_2_data = db.session.execute(db.select(Designations2).order_by(Designations2.hscode)).scalars()
     # for value in designations_2_data:
     #     print("{:<5} {:<3} {:<55} {:<11} {:<5} {:<5}".format(value.id, value.cert_id, value.designation, value.hscode, value.s_low, value.s_high))
     #     # print(f'{value.id}\t{value.cert_id}\t{value.designation}\t{value.hscode}\t{value.s_low}\t{value.s_high}')
 
-    # Р—Р°РєСЂС‹С‚РёРµ СЃРµСЃСЃРёРё
+    # Закрытие сессии
     session.close()
-    return upd_rowData
+
 
 
 def get_coefficient(matching_records):
@@ -605,7 +665,7 @@ def string_collector(rowData, headers, values, col_names):
     for header in col_names:
         if header in headers:
             indexes.append(headers.index(header))
-    print(indexes)
+    print(f'\tЗаполнение индексов {indexes} данными {values}')
     # for index in indexes:
     #     rowData[index] = '+'
     for index, value in zip(indexes, values):
@@ -615,179 +675,212 @@ def string_collector(rowData, headers, values, col_names):
 
 def calculations(headers, rowData, quantity, gross_weight, price_per_kg):
     """
-    РџРѕСЃР»РµРґРЅРёР№ С€Р°Рі РґР»СЏ Р·Р°РїРѕР»РЅРµРЅРёСЏ СЃС‚СЂРѕРєРё
+    Последний шаг для заполнения строки
     :return: upd_rowData
     """
-    # Р—Р°РґР°РµРј quantity, gross_weight, price_per_kg
-    quantity = int(quantity)  # (РљРћР›-Р’Рћ)
-    if isinstance(gross_weight, str):
-        gross_weight = float(gross_weight.replace(',', '.'))  # (Р‘Р )
+    print(f'\n3. Расчёт стоимости и веса:')
+    # Задаем quantity, gross_weight, price_per_kg
+    # quantity = float(quantity)  # (КОЛ-ВО)
+    if quantity and gross_weight:
+        quantity = float(quantity)  # (КОЛ-ВО)
+        gross_weight = float(gross_weight)  # (БР)
     if price_per_kg:
-        price_per_kg = float(price_per_kg.replace(',', '.'))  # ($/РљР“)
+        if isinstance(price_per_kg, str):
+            # price_per_kg = float(price_per_kg.replace(',', '.'))  # ($/КГ)
+            price_per_kg = float(price_per_kg.replace(',', '.'))  # ($/КГ)
+        else:
+            price_per_kg = float(price_per_kg)  # ($/КГ)
+
+        # print(f'\n{quantity_value} {type(quantity_value)}')
+        # print(f'{gross_value} {type(gross_value)}')
+        # print(f'{skg_value} {type(skg_value)}')
+
+        # Рассчитываем предварительный net_weight
+        random.seed(42)
+        min_coeff = 0.8911  # 111111111111
+        max_coeff = 0.9112  # 111111111111
+        coeff = round(random.uniform(min_coeff, max_coeff), 4)
+        # coeff = (random.random() * 0.02 + min_coeff)
+
+        # net_weight = round(gross_weight * coeff, 4)  # (НТ)
+        net_weight = Decimal(gross_weight * coeff).quantize(Decimal('0.01'), rounding=ROUND_UP)  # (НТ)
+        # net_weight = float(net_weight)
+
+        converted_currency = Decimal(1 / curr_coeff * price_per_kg).quantize(Decimal('0.01'), rounding=ROUND_UP)
+        # converted_currency = round(1 / curr_coeff * price_per_kg, 4)
+
+        # Рассчитываем price
+        # price = (price_per_kg * curr_coeff) * net_weight  # (ЦЕНА) тут добавлено произведение на curr_coeff. Не было
+        price = float(converted_currency * net_weight)  # (ЦЕНА)
+        price = round(price / quantity, 2) * quantity  # новая (ЦЕНА)
+
+        # Рассчитываем итоговый net_weight
+        # net_weight = price / (price_per_kg * curr_coeff)  # (НТ) тут добавлено произведение на curr_coeff. Не было
+        net_weight = price / float(converted_currency)  # (НТ)
+
+        # Рассчитываем weight_per_unit
+        weight_per_unit = net_weight / quantity  # (ВЕС ШТ)
+
+        # Рассчитываем price_per_unit
+        price_per_unit = price / quantity
+
+        # Округление
+        weight_per_unit = float(round(weight_per_unit, 3))  # .replace('.', ',')
+        gross_weight = float(round(gross_weight, 2))  # .replace('.', ',')
+        net_weight = float(round(net_weight, 2))  # .replace('.', ',')
+        price_per_kg = float(round(price_per_kg, 2))  # .replace('.', ',')
+        price = float(round(price, 2))  # .replace('.', ',')
+        price_per_unit = float(round(price_per_unit, 2))  # .replace('.', ',')
+        coeff = float(round(coeff, 4))  # .replace('.', ',')  # Скорее всего вообще не нужен
+
+        # weight_per_unit = str(round(weight_per_unit, 3))
+        # gross_weight = str(round(gross_weight, 2))
+        # net_weight = str(round(net_weight, 2))
+        # price_per_kg = str(round(price_per_kg, 2))
+        # price = str(round(price, 2))
+        # price_per_unit = round(price_per_unit, 2)
+        # coeff = round(coeff, 4)  # Скорее всего вообще не нужен
+
+        # digits = [quantity, weight_per_unit, gross_weight, net_weight, price_per_kg, price]
+        digits = [quantity, weight_per_unit, price_per_unit, gross_weight, net_weight, price_per_kg, price]
+        # print(f'\n{digits}')
+        # Заголовки таблицы в которых необходимо заменить полученные значения
+        # data_headers = ['КОЛ-ВО', 'ВЕС ШТ', 'БР', 'НТ', '$/КГ', 'ЦЕНА']
+        data_headers = ['КОЛ-ВО', 'ВЕС ШТ', '$/ШТ', 'БР', 'НТ', '$/КГ', 'ЦЕНА']
+        # Подставляем значения в правильное место наполняемой строки
+        upd_rowData = string_collector(rowData, headers, digits, data_headers)
+        return upd_rowData
     else:
-        return rowData
-
-    # print(f'\n{quantity_value} {type(quantity_value)}')
-    # print(f'{gross_value} {type(gross_value)}')
-    # print(f'{skg_value} {type(skg_value)}')
-
-    # Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј РїСЂРµРґРІР°СЂРёС‚РµР»СЊРЅС‹Р№ net_weight
-    random.seed(42)
-    min_coeff = 0.8911  # 111111111111
-    max_coeff = 0.9112  # 111111111111
-    coeff = round(random.uniform(min_coeff, max_coeff), 4)
-    # coeff = (random.random() * 0.02 + min_coeff)
-    net_weight = Decimal(gross_weight * coeff).quantize(Decimal('0.01'), rounding=ROUND_UP)  # (РќРў)
-
-    converted_currency = Decimal(1 / curr_coeff * price_per_kg).quantize(Decimal('0.01'), rounding=ROUND_UP)
-    # Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј price
-    # price = (price_per_kg * curr_coeff) * net_weight  # (Р¦Р•РќРђ) С‚СѓС‚ РґРѕР±Р°РІР»РµРЅРѕ РїСЂРѕРёР·РІРµРґРµРЅРёРµ РЅР° curr_coeff. РќРµ Р±С‹Р»Рѕ
-    price = converted_currency * net_weight  # (Р¦Р•РќРђ)
-    price = round(price / quantity, 2) * quantity  # РЅРѕРІР°СЏ (Р¦Р•РќРђ)
-
-    # Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј РёС‚РѕРіРѕРІС‹Р№ net_weight
-    # net_weight = price / (price_per_kg * curr_coeff)  # (РќРў) С‚СѓС‚ РґРѕР±Р°РІР»РµРЅРѕ РїСЂРѕРёР·РІРµРґРµРЅРёРµ РЅР° curr_coeff. РќРµ Р±С‹Р»Рѕ
-    net_weight = price / converted_currency  # (РќРў)
-
-    # Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј weight_per_unit
-    weight_per_unit = net_weight / quantity  # (Р’Р•РЎ РЁРў)
-
-    # Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј price_per_unit
-    price_per_unit = price / quantity
-
-    # РћРєСЂСѓРіР»РµРЅРёРµ
-    weight_per_unit = str(round(weight_per_unit, 3)).replace('.', ',')
-    gross_weight = str(round(gross_weight, 2)).replace('.', ',')
-    net_weight = str(round(net_weight, 2)).replace('.', ',')
-    price_per_kg = str(round(price_per_kg, 2)).replace('.', ',')
-    price = str(round(price, 2)).replace('.', ',')
-    price_per_unit = str(round(price_per_unit, 2)).replace('.', ',')
-    coeff = str(round(coeff, 4)).replace('.', ',')  # РЎРєРѕСЂРµРµ РІСЃРµРіРѕ РІРѕРѕР±С‰Рµ РЅРµ РЅСѓР¶РµРЅ
-
-    # weight_per_unit = str(round(weight_per_unit, 3))
-    # gross_weight = str(round(gross_weight, 2))
-    # net_weight = str(round(net_weight, 2))
-    # price_per_kg = str(round(price_per_kg, 2))
-    # price = str(round(price, 2))
-    # price_per_unit = round(price_per_unit, 2)
-    # coeff = round(coeff, 4)  # РЎРєРѕСЂРµРµ РІСЃРµРіРѕ РІРѕРѕР±С‰Рµ РЅРµ РЅСѓР¶РµРЅ
-
-    # digits = [quantity, weight_per_unit, gross_weight, net_weight, price_per_kg, price]
-    digits = [quantity, weight_per_unit, price_per_unit, gross_weight, net_weight, price_per_kg, price]
-    print(f'\n{digits}')
-    # Р—Р°РіРѕР»РѕРІРєРё С‚Р°Р±Р»РёС†С‹ РІ РєРѕС‚РѕСЂС‹С… РЅРµРѕР±С…РѕРґРёРјРѕ Р·Р°РјРµРЅРёС‚СЊ РїРѕР»СѓС‡РµРЅРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ
-    # data_headers = ['РљРћР›-Р’Рћ', 'Р’Р•РЎ РЁРў', 'Р‘Р ', 'РќРў', '$/РљР“', 'Р¦Р•РќРђ']
-    data_headers = ['РљРћР›-Р’Рћ', 'Р’Р•РЎ РЁРў', '$/РЁРў', 'Р‘Р ', 'РќРў', '$/РљР“', 'Р¦Р•РќРђ']
-    # РџРѕРґСЃС‚Р°РІР»СЏРµРј Р·РЅР°С‡РµРЅРёСЏ РІ РїСЂР°РІРёР»СЊРЅРѕРµ РјРµСЃС‚Рѕ РЅР°РїРѕР»РЅСЏРµРјРѕР№ СЃС‚СЂРѕРєРё
-    upd_rowData = string_collector(rowData, headers, digits, data_headers)
-    return upd_rowData
+        digits = [quantity, '', '', gross_weight, '', '', '']
+        data_headers = ['КОЛ-ВО', 'ВЕС ШТ', '$/ШТ', 'БР', 'НТ', '$/КГ', 'ЦЕНА']
+        upd_rowData = string_collector(rowData, headers, digits, data_headers)
+        return upd_rowData
 
 
 def autofill(headers, rowData):
     '''
-    Р—РЅР°С‡РµРЅРёСЏ РїРѕ-СѓРјРѕР»С‡Р°РЅРёСЋ, РєРѕС‚РѕСЂС‹Рµ Р·Р°РїРѕР»РЅСЏСЋС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё
+    Значения по-умолчанию, которые заполняются автоматически
     '''
-    spt = 'KR'
-    code = 796
-    measure_units = 'С€С‚'
-    avaible = 1
-    kod_up = '4D'
-    autofill_data = [spt, code, measure_units, avaible, kod_up]
-    # Р—Р°РіРѕР»РѕРІРєРё С‚Р°Р±Р»РёС†С‹ РІ РєРѕС‚РѕСЂС‹С… РЅРµРѕР±С…РѕРґРёРјРѕ Р·Р°РјРµРЅРёС‚СЊ РїРѕР»СѓС‡РµРЅРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ
-    data_headers = ['РЎРџРў', 'РљРћР”', 'РќРђРРњ', 'Р•РЎРўР¬/РќР•Рў', 'РљРћР” РЈРџ']
-    # РџРѕРґСЃС‚Р°РІР»СЏРµРј Р·РЅР°С‡РµРЅРёСЏ РІ РїСЂР°РІРёР»СЊРЅРѕРµ РјРµСЃС‚Рѕ РЅР°РїРѕР»РЅСЏРµРјРѕР№ СЃС‚СЂРѕРєРё
-    upd_rowData = string_collector(rowData, headers, autofill_data, data_headers)
-
-    return upd_rowData
+    print(f'\n4. Автозаполнение данными по-умолчанию:')
+    skg_index = get_colIndex_by_colName('$/КГ', headers)
+    skg_value = rowData[skg_index]
+    if skg_value:
+        spt = 'KR'
+        code = 796
+        measure_units = 'шт'
+        avaible = 1
+        kod_up = '4D'
+        autofill_data = [spt, code, measure_units, avaible, kod_up]
+        # Заголовки таблицы в которых необходимо заменить полученные значения
+        data_headers = ['СПТ', 'КОД', 'НАИМ', 'ЕСТЬ/НЕТ', 'КОД УП']
+        # Подставляем значения в правильное место наполняемой строки
+        upd_rowData = string_collector(rowData, headers, autofill_data, data_headers)
+        return upd_rowData
+    else:
+        autofill_data = ['', '', '', '', '']
+        data_headers = ['СПТ', 'КОД', 'НАИМ', 'ЕСТЬ/НЕТ', 'КОД УП']
+        upd_rowData = string_collector(rowData, headers, autofill_data, data_headers)
+        return upd_rowData
 
 
 def route_by_columns(rowIndex, colIndex, cellData, rowData, headers):
 # def route_by_columns(rowIndex, colIndex, rowData, headers):
     """
-    Р’ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё РѕС‚ РёРјРµРЅРё СЂРµРґР°РєС‚РёСЂСѓРµРјРѕР№ РєРѕР»РѕРЅРєРё,
-    РїСЂРёРјРµРЅСЏС‚СЊ РѕРїСЂРµРґРµР»РµРЅРЅС‹Р№ РЅР°Р±РѕСЂ С„СѓРЅРєС†РёР№.
+    В зависимости от имени редактируемой колонки,
+    применять определенный набор функций.
     :return: upd_rowData
     """
     upd_rowData = rowData
-
-    # РџРѕР»СѓС‡Р°РµРј РРјСЏ РєРѕР»РѕРЅРєРё РѕС‚СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРЅРѕР№ СЏС‡РµР№РєРё
+    # Получаем Имя колонки отредактированной ячейки
     col_name = get_colName_by_colIndex(colIndex, headers)
-
-    # Р•СЃР»Рё СЂРµРґР°РєС‚РёСЂРѕРІР°Р»Рё Р·РЅР°С‡РµРЅРёРµ РІ РєРѕР»РѕРЅРєРµ 'РќРђРРњР•РќРћР’РђРќРР•2' РёР»Рё 'РўРњ', С‚Рѕ
-    if col_name == 'РќРђРРњР•РќРћР’РђРќРР•2' or 'РўРњ':
-        # РџРѕР»СѓС‡Р°РµРј Р·РЅР°С‡РµРЅРёРµ РёР· РќРђРРњР•РќРћР’РђРќРР•2
-        naim_index = get_colIndex_by_colName('РќРђРРњР•РќРћР’РђРќРР•2', headers)
+    print(f'\n1. Устанавливаем редактируемую колонку:\n'
+          f'\tИмя колонки: {col_name}')
+    # Если редактировали значение в колонке 'НАИМЕНОВАНИЕ2' или 'ТМ', то
+    if col_name == 'НАИМЕНОВАНИЕ2' or 'ТМ':
+        # Получаем значение из НАИМЕНОВАНИЕ2
+        naim_index = get_colIndex_by_colName('НАИМЕНОВАНИЕ2', headers)
         naim_value = rowData[naim_index]
-        # РџРѕР»СѓС‡Р°РµРј Р·РЅР°С‡РµРЅРёРµ РёР· РўРњ
-        tm_index = get_colIndex_by_colName('РўРњ', headers)
+        # Получаем значение из ТМ
+        tm_index = get_colIndex_by_colName('ТМ', headers)
         tm_value = rowData[tm_index]
-        # РџРѕР»СѓС‡Р°РµРј Р·РЅР°С‡РµРЅРёРµ РёР· РљРћР›-Р’Рћ
-        quantity_index = get_colIndex_by_colName('РљРћР›-Р’Рћ', headers)
+        # Получаем значение из КОЛ-ВО
+        quantity_index = get_colIndex_by_colName('КОЛ-ВО', headers)
         quantity_value = rowData[quantity_index]
-        # РџРѕР»СѓС‡Р°РµРј Р·РЅР°С‡РµРЅРёРµ РёР· Р‘Р 
-        gross_index = get_colIndex_by_colName('Р‘Р ', headers)
+        # Получаем значение из БР
+        gross_index = get_colIndex_by_colName('БР', headers)
         gross_value = rowData[gross_index]
 
-        print(f'Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РІ СЃС‚РѕР»Р±С†Рµ: {col_name}')
-        print(f'Р’С…РѕРґСЏС‰РёРµ Р·РЅР°С‡РµРЅРёСЏ СЃС‚СЂРѕРєРё: {rowData}\n')
-
         upd_rowData = get_cert_info(engine, headers, rowData, naim_value, tm_value)
-        # РџРѕР»СѓС‡Р°РµРј Р·РЅР°С‡РµРЅРёРµ РёР· $/РљР“
-        skg_index = get_colIndex_by_colName('$/РљР“', headers)
+
+        # Получаем значение из $/КГ
+        skg_index = get_colIndex_by_colName('$/КГ', headers)
         skg_value = rowData[skg_index]
         upd_rowData = calculations(headers, upd_rowData, quantity_value, gross_value, skg_value)
         upd_rowData = autofill(headers, upd_rowData)
-    if col_name == 'РљРћР›-Р’Рћ':
+    if col_name == 'КОЛ-ВО':
         # upd_rowData[0] = '+' + upd_rowData[0]
         upd_rowData = quantity_update(colIndex, rowData, cellData, headers)
+        return upd_rowData
     else:
         pass
 
-    upd_rowIndex = rowIndex  # rowIndex РІРѕРѕР±С‰Рµ Р±РѕР»СЊС€Рµ РЅРёРіРґРµ РЅРµ РёСЃРїРѕР»СЊР·СѓСЋ, РєСЂРѕРјРµ РєР°Рє РїРѕСЃРјРѕС‚СЂРµС‚СЊ РіРґРµ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ Р±С‹Р»Рѕ
+    upd_rowIndex = rowIndex  # rowIndex вообще больше нигде не использую, кроме как посмотреть где редактирование было
     upd_colIndex = colIndex
-    print(f'\nРЎС‚РѕР»Р±РµС†: {upd_colIndex} | РЎС‚СЂРѕРєР°: {upd_rowIndex}')
-    print(f'РћР±РЅРѕРІР»РµРЅРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ СЃС‚СЂРѕРєРё: {upd_rowData}')
+
+    print(f'\n5. Обновленные значения строки:\n'
+          f'\t{upd_rowData}\n\n')
     return upd_rowData
 
 
 def quantity_update(colIndex, rowData, cellData, headers):
     upd_rowData = rowData
     quantity = upd_rowData[colIndex]
+    print(f'Старое значение: {cellData}')
+    print(f'Новое значение {quantity}')
+    k = int(quantity) / int(cellData) if int(cellData) != 0 else 1
+    print(f'Коэффициент: {k}')
+    # Получаем значение из БР
+    gross_index = get_colIndex_by_colName('БР', headers)
+    # gross_weight = float((rowData[gross_index]).replace(',', '.')) * k
+    gross_weight = float((rowData[gross_index])) * k
+    # Получаем значение из НТ
+    net_index = get_colIndex_by_colName('НТ', headers)
+    # net_weight = float((rowData[net_index]).replace(',', '.')) * k
+    print(type(rowData[net_index]))
+    n = rowData[net_index]  # if rowData[net_index] else 0.0
+    net_weight = float(n) * k
+    net_weight = Decimal(net_weight).quantize(Decimal('0.01'), rounding=ROUND_UP)  # (НТ)
+    net_weight = float(net_weight)
 
-    print(f'РЎС‚Р°СЂРѕРµ Р·РЅР°С‡РµРЅРёРµ: {cellData}')
-    print(f'РќРѕРІРѕРµ Р·РЅР°С‡РµРЅРёРµ {quantity}')
-    k = int(quantity) / int(cellData)
-    print(f'РљРѕСЌС„С„РёС†РёРµРЅС‚: {k}')
-    # РџРѕР»СѓС‡Р°РµРј Р·РЅР°С‡РµРЅРёРµ РёР· Р‘Р 
-    gross_index = get_colIndex_by_colName('Р‘Р ', headers)
-    gross_weight = float((rowData[gross_index]).replace(',', '.')) * k
-    # РџРѕР»СѓС‡Р°РµРј Р·РЅР°С‡РµРЅРёРµ РёР· РќРў
-    net_index = get_colIndex_by_colName('РќРў', headers)
-    net_weight = float((rowData[net_index]).replace(',', '.')) * k
-    net_weight = Decimal(net_weight).quantize(Decimal('0.01'), rounding=ROUND_UP)  # (РќРў)
-
-    # Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј weight_per_unit
-    # unit_index = get_colIndex_by_colName('Р’Р•РЎ РЁРў', headers)
+    # Рассчитываем weight_per_unit
+    # unit_index = get_colIndex_by_colName('ВЕС ШТ', headers)
     # weight_per_unit = float(rowData[unit_index])
-    weight_per_unit = net_weight / quantity   # (Р’Р•РЎ РЁРў)
+    weight_per_unit = net_weight / quantity   # (ВЕС ШТ)
 
-    # РџРѕР»СѓС‡Р°РµРј Р·РЅР°С‡РµРЅРёРµ РёР· $/РљР“
-    price_per_kg_index = get_colIndex_by_colName('$/РљР“', headers)
-    price_per_kg = float((rowData[price_per_kg_index]).replace(',', '.'))
+    # Получаем значение из $/КГ
+    price_per_kg_index = get_colIndex_by_colName('$/КГ', headers)
+    # price_per_kg = float((rowData[price_per_kg_index]).replace(',', '.'))
+    k = float(rowData[price_per_kg_index])  # if rowData[price_per_kg_index] else 0.0
+    price_per_kg = k
 
-    # Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј price
+    # Рассчитываем price
     converted_currency = Decimal(1 / curr_coeff * price_per_kg).quantize(Decimal('0.01'), rounding=ROUND_UP)
-    price = converted_currency * net_weight  # (Р¦Р•РќРђ)
-    price = round(price / quantity, 2) * quantity  # РЅРѕРІР°СЏ (Р¦Р•РќРђ)
-    # price = net_weight * price_per_kg  # (Р¦Р•РќРђ)
+    converted_currency = float(converted_currency)
+    price = converted_currency * net_weight  # (ЦЕНА)
+    price = round(price / quantity, 2) * quantity  # новая (ЦЕНА)
+    # price = net_weight * price_per_kg  # (ЦЕНА)
 
-    # Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј РёС‚РѕРіРѕРІС‹Р№ net_weight
-    net_weight = price / converted_currency  # (РќРў)
+    # Рассчитываем итоговый net_weight
+    net_weight = price / converted_currency
+    # if converted_currency != 0:
+    #     net_weight = price / converted_currency  # (НТ)
+    # else:
+    #     net_weight = 0
 
-    # Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј price_per_unit
-    price_per_unit = price / quantity  # ($/РЁРў)
+    # Рассчитываем price_per_unit
+    price_per_unit = price / quantity  # ($/ШТ)
 
-    # РћРєСЂСѓРіР»РµРЅРёРµ
+    # Округление
     # quantity = round(quantity, 2)
     weight_per_unit = round(weight_per_unit, 3)
     price_per_unit = round(price_per_unit, 2)
@@ -796,9 +889,9 @@ def quantity_update(colIndex, rowData, cellData, headers):
     price = round(price, 2)
 
     new_data = [quantity, weight_per_unit, price_per_unit, gross_weight, net_weight, price]
-    # Р—Р°РіРѕР»РѕРІРєРё С‚Р°Р±Р»РёС†С‹ РІ РєРѕС‚РѕСЂС‹С… РЅРµРѕР±С…РѕРґРёРјРѕ Р·Р°РјРµРЅРёС‚СЊ РїРѕР»СѓС‡РµРЅРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ
-    data_headers = ['РљРћР›-Р’Рћ', 'Р’Р•РЎ РЁРў', '$/РЁРў', 'Р‘Р ', 'РќРў', 'Р¦Р•РќРђ']
-    # РџРѕРґСЃС‚Р°РІР»СЏРµРј Р·РЅР°С‡РµРЅРёСЏ РІ РїСЂР°РІРёР»СЊРЅРѕРµ РјРµСЃС‚Рѕ РЅР°РїРѕР»РЅСЏРµРјРѕР№ СЃС‚СЂРѕРєРё
+    # Заголовки таблицы в которых необходимо заменить полученные значения
+    data_headers = ['КОЛ-ВО', 'ВЕС ШТ', '$/ШТ', 'БР', 'НТ', 'ЦЕНА']
+    # Подставляем значения в правильное место наполняемой строки
     upd_rowData = string_collector(rowData, headers, new_data, data_headers)
 
     return upd_rowData
@@ -806,7 +899,7 @@ def quantity_update(colIndex, rowData, cellData, headers):
 
 def get_colIndex_by_colName(colName, headers):
     """
-    РџРѕР»СѓС‡Р°РµРј РРЅРґРµРєСЃ РєРѕР»РѕРЅРєРё РїРѕ Р—Р°РіРѕР»РѕРІРєСѓ РєРѕР»РѕРЅРєРё
+    Получаем Индекс колонки по Заголовку колонки
     :return: col_index
     """
     # headers = request.form.getlist('headers[]')
@@ -816,7 +909,7 @@ def get_colIndex_by_colName(colName, headers):
 
 def get_colName_by_colIndex(colIndex, headers):
     """
-    РџРѕР»СѓС‡Р°РµРј Р—Р°РіРѕР»РѕРІРѕРє РєРѕР»РѕРЅРєРё РїРѕ РРЅРґРµРєСЃСѓ РєРѕР»РѕРЅРєРё
+    Получаем Заголовок колонки по Индексу колонки
     :return: col_name
     """
     # headers = request.form.getlist('headers[]')
@@ -825,26 +918,26 @@ def get_colName_by_colIndex(colIndex, headers):
 
 
 def create_result_df(excel_df):
-    # РРјРµРЅР° РєРѕР»РѕРЅРѕРє Result С‚Р°Р±Р»РёС†С‹
+    # Имена колонок Result таблицы
     result_column_headers = [
-        'РќРђРРњР•РќРћР’РђРќРР•1', 'РќРђРРњР•РќРћР’РђРќРР•2', 'РР—Р“РћРўРћР’РРўР•Р›Р¬', 'РўРњ', 'РњРђР РљРђ', 'РњРћР”Р•Р›Р¬',
-        'РђР Рў', 'РЎРџРў', 'РљРћР›-Р’Рћ', 'РљРћР”', 'РќРђРРњ', 'РљРћР” РўРќР’Р”', 'Р”РћРџ РљРћР”', 'Р’Р•РЎ РЁРў', '$/РЁРў',
-        'Р‘Р ', 'РќРў', '$/РљР“', 'Р¦Р•РќРђ', 'РњР•РЎРўРђ', 'РњР•РЎРў Р§РђРЎРў', 'Р•РЎРўР¬/РќР•Рў', 'РљРћР” РЈРџ',
-        'Р”РћРџ РљРћР” РЈРџ', 'РљРћР” в„–1', 'РЎР•Р Рў в„–1', 'РќРђР§РђР›Рћ в„–1', 'РљРћРќР•Р¦ в„–1', 'РљРћР” в„–2',
-        'РЎР•Р Рў в„–2', 'РќРђР§РђР›Рћ в„–2', 'РљРћРќР•Р¦ в„–2'
+        'НАИМЕНОВАНИЕ1', 'НАИМЕНОВАНИЕ2', 'ИЗГОТОВИТЕЛЬ', 'ТМ', 'МАРКА', 'МОДЕЛЬ',
+        'АРТ', 'СПТ', 'КОЛ-ВО', 'КОД', 'НАИМ', 'КОД ТНВД', 'ДОП КОД', 'ВЕС ШТ', '$/ШТ',
+        'БР', 'НТ', '$/КГ', 'ЦЕНА', 'МЕСТА', 'МЕСТ ЧАСТ', 'ЕСТЬ/НЕТ', 'КОД УП',
+        'ДОП КОД УП', 'КОД №1', 'СЕРТ №1', 'НАЧАЛО №1', 'КОНЕЦ №1', 'КОД №2',
+        'СЕРТ №2', 'НАЧАЛО №2', 'КОНЕЦ №2'
     ]
-    # РћРїСЂРµРґРµР»СЏРµРј dataframe result_df СЃ Р·Р°РіРѕР»РѕРІРєР°РјРё result_column_headers
+    # Определяем dataframe result_df с заголовками result_column_headers
     result_df = pd.DataFrame(columns=result_column_headers)
-    # РћС‚РѕР±СЂР°Р¶РµРЅРёРµ С‚РѕР»СЊРєРѕ РЅРµРѕР±С…РѕРґРёРјС‹С… СЃС‚РѕР»Р±С†РѕРІ
-    excel_df = excel_df[['РќР°РёРјРµРЅРѕРІР°РЅРёРµ', 'РўРѕСЂРіРѕРІР°СЏ РњР°СЂРєР°', 'РљРѕР»РёС‡РµСЃС‚РІРѕ, С€С‚.', 'Р’РµСЃ Р‘Р РЈРўРўРћ, РєРі.']]
-    # РџРµСЂРµРёРјРµРЅРѕРІР°РЅРёРµ СЃС‚РѕР»Р±С†РѕРІ
-    excel_df.columns = ['РќРђРРњР•РќРћР’РђРќРР•2', 'РўРњ', 'РљРћР›-Р’Рћ', 'Р‘Р ']
-    # Р¤РёР»СЊС‚СЂСѓРµРј РїСѓСЃС‚С‹Рµ РёР»Рё РІСЃРµ NA Р·Р°РїРёСЃРё РёР· excel_data РїРµСЂРµРґ РєРѕРЅРєР°С‚РµРЅР°С†РёРµР№
-    excel_df = excel_df.dropna(how='all')  # РЈРґР°Р»СЏРµРј СЃС‚СЂРѕРєРё, РІ РєРѕС‚РѕСЂС‹С… РІСЃРµ Р·Р°РїРёСЃРё СЏРІР»СЏСЋС‚СЃСЏ NA
-    # Р”РѕР±Р°РІР»РµРЅРёРµ РґР°РЅРЅС‹С… РІ РѕР±С‰СѓСЋ С‚Р°Р±Р»РёС†Сѓ
+    # Отображение только необходимых столбцов
+    excel_df = excel_df[['Наименование', 'Торговая Марка', 'Количество, шт.', 'Вес БРУТТО, кг.']]
+    # Переименование столбцов
+    excel_df.columns = ['НАИМЕНОВАНИЕ2', 'ТМ', 'КОЛ-ВО', 'БР']
+    # Фильтруем пустые или все NA записи из excel_data перед конкатенацией
+    excel_df = excel_df.dropna(how='all')  # Удаляем строки, в которых все записи являются NA
+    # Добавление данных в общую таблицу
     if not excel_df.empty:
         result_df = pd.concat([result_df, excel_df], ignore_index=True)
-        # Р—Р°РјРµРЅР° Р·РЅР°С‡РµРЅРёР№ РїСѓСЃС‚С‹С… СЏС‡РµРµРє СЃ NaN РЅР° ''
+        # Замена значений пустых ячеек с NaN на ''
         result_df = result_df.fillna('')
     # print(result_df)
     return result_df
@@ -852,26 +945,26 @@ def create_result_df(excel_df):
 
 def clean_lat_symbols(data):
     """
-    Р¤СѓРЅРєС†РёСЏ РґР»СЏ РѕС‡РёСЃС‚РєРё РґР°РЅРЅС‹С… РІ СЃС‚РѕР»Р±С†Рµ РќРђРРњР•РќРћР’РђРќРР•2
-    РЅР° РЅР°Р»РёС‡РёРµ СЃРёРјРІРѕР»РѕРІ Р»Р°С‚РёРЅРёС†С‹
-    РґРѕР»Р¶РЅР° РІРѕР·РІСЂР°С‰Р°С‚СЊ РѕС‡РёС‰РµРЅРЅС‹Рµ РґР°РЅРЅС‹Рµ
+    Функция для очистки данных в столбце НАИМЕНОВАНИЕ2
+    на наличие символов латиницы
+    должна возвращать очищенные данные
     """
     lat_to_cyr = {
-        'A': 'Рђ', 'a': 'Р°',
-        'B': 'Р’',
-        'E': 'Р•', 'e': 'Рµ',
-        '3': 'Р·',
-        'K': 'Рљ', 'k': 'Рє',
-        'M': 'Рњ',
-        'H': 'Рќ', 'h': 'РЅ',
-        'O': 'Рћ', 'o': 'Рѕ',
-        'P': 'Р ', 'p': 'СЂ',
-        'C': 'РЎ', 'c': 'СЃ',
-        'T': 'Рў', 't': 'С‚',
-        'Y': 'РЈ', 'y': 'Сѓ',
-        'X': 'РҐ', 'x': 'С…',
-        'b': 'СЊ',
-        'n': 'Рї'}
+        'A': 'А', 'a': 'а',
+        'B': 'В',
+        'E': 'Е', 'e': 'е',
+        '3': 'з',
+        'K': 'К', 'k': 'к',
+        'M': 'М',
+        'H': 'Н', 'h': 'н',
+        'O': 'О', 'o': 'о',
+        'P': 'Р', 'p': 'р',
+        'C': 'С', 'c': 'с',
+        'T': 'Т', 't': 'т',
+        'Y': 'У', 'y': 'у',
+        'X': 'Х', 'x': 'х',
+        'b': 'ь',
+        'n': 'п'}
 
     if pd.isnull(data) or data == 'nan':
         return ''
@@ -884,50 +977,50 @@ def clean_lat_symbols(data):
 
 def clean_cyr_symbols(data):
     """
-    Р¤СѓРЅРєС†РёСЏ РґР»СЏ РѕС‡РёСЃС‚РєРё РґР°РЅРЅС‹С… РІ СЃС‚РѕР»Р±С†Рµ РўРњ
-    РЅР° РЅР°Р»РёС‡РёРµ СЃРёРјРІРѕР»РѕРІ РєРёСЂРёР»Р»РёС†С‹
-    РґРѕР»Р¶РЅР° РІРѕР·РІСЂР°С‰Р°С‚СЊ РѕС‡РёС‰РµРЅРЅС‹Рµ РґР°РЅРЅС‹Рµ
+    Функция для очистки данных в столбце ТМ
+    на наличие символов кириллицы
+    должна возвращать очищенные данные
     """
     cyr_to_lat = {
-        'Рђ': 'A', 'Р°': 'a',
-        'Р’': 'B',
-        'РЎ': 'C', 'СЃ': 'c',
-        'Р•': 'E', 'Рµ': 'e',
-        'Рќ': 'H', 'РЅ': 'h',
-        'Рљ': 'K', 'Рє': 'k',
-        'Рњ': 'M',
-        'Рћ': 'O', 'Рѕ': 'o',
-        'Р ': 'P', 'СЂ': 'p',
-        'Рў': 'T', 'С‚': 't',
-        'РҐ': 'X', 'С…': 'x',
-        'РЈ': 'Y', 'Сѓ': 'y',
-        'Рї': 'n',
-        'СЊ': 'b'}
+        'А': 'A', 'а': 'a',
+        'В': 'B',
+        'С': 'C', 'с': 'c',
+        'Е': 'E', 'е': 'e',
+        'Н': 'H', 'н': 'h',
+        'К': 'K', 'к': 'k',
+        'М': 'M',
+        'О': 'O', 'о': 'o',
+        'Р': 'P', 'р': 'p',
+        'Т': 'T', 'т': 't',
+        'Х': 'X', 'х': 'x',
+        'У': 'Y', 'у': 'y',
+        'п': 'n',
+        'ь': 'b'}
 
     if pd.isnull(data) or data == 'nan':
         return ''
     else:
-        data = re.sub(r'[Р°-СЏРђ-РЇ]', lambda x: cyr_to_lat.get(x.group(), x.group()), data)
-        # data = re.sub(r'[Р°-СЏРђ-РЇ]', lambda x: cyr_to_lat[x.group()], data)
+        data = re.sub(r'[а-яА-Я]', lambda x: cyr_to_lat.get(x.group(), x.group()), data)
+        # data = re.sub(r'[а-яА-Я]', lambda x: cyr_to_lat[x.group()], data)
         # print(f'cyr_to_lat: {data}')
         return data
 
 
 def clean_spaces(data):
     """
-    Р¤СѓРЅРєС†РёСЏ РґР»СЏ РѕС‡РёСЃС‚РєРё РґР°РЅРЅС‹С… РІ СЃС‚СЂРѕРєРѕРІС‹С… СЃС‚РѕР»Р±С†Р°С…
-    РЅР° РЅР°Р»РёС‡РёРµ РјРЅРѕР¶РµСЃС‚РІРµРЅРЅС‹С…/Р»РµРІС‹С…/РїСЂР°РІС‹С… РїСЂРѕР±РµР»РѕРІ
-    РґРѕР»Р¶РЅР° РІРѕР·РІСЂР°С‰Р°С‚СЊ РѕС‡РёС‰РµРЅРЅС‹Рµ РґР°РЅРЅС‹Рµ
+    Функция для очистки данных в строковых столбцах
+    на наличие множественных/левых/правых пробелов
+    должна возвращать очищенные данные
     """
     if pd.isnull(data) or data == 'nan' or data == '':
         return ''
     else:
-        # РџСЂРѕРІРµСЂСЏРµРј, СЏРІР»СЏРµС‚СЃСЏ Р»Рё data СЃС‚СЂРѕРєРѕР№
+        # Проверяем, является ли data строкой
         if isinstance(data, str):
-            # РЈРґР°Р»СЏРµРј РЅР°С‡Р°Р»СЊРЅС‹Рµ Рё РєРѕРЅРµС‡РЅС‹Рµ РїСЂРѕР±РµР»С‹
+            # Удаляем начальные и конечные пробелы
             data = data.strip()
             if ' ' in data:
-                # Р—Р°РјРµРЅР° РјРЅРѕР¶РµСЃС‚РІРµРЅРЅС‹С… РїСЂРѕР±РµР»РѕРІ РЅР° РѕРґРёРЅ РїСЂРѕР±РµР»
+                # Замена множественных пробелов на один пробел
                 data = ' '.join(data.split())
         # print(f'clean_spaces: {data}')
         return data
@@ -935,14 +1028,14 @@ def clean_spaces(data):
 
 def clean_all_spaces(data):
     """
-    Р¤СѓРЅРєС†РёСЏ РґР»СЏ РѕС‡РёСЃС‚РєРё РґР°РЅРЅС‹С… РІ СЃС‚СЂРѕРєРѕРІС‹С… СЃС‚РѕР»Р±С†Р°С…
-    РѕС‚ РІСЃРµС… РёРјРµСЋС‰РёС…СЃСЏ РїСЂРѕР±РµР»РѕРІ
-    РґРѕР»Р¶РЅР° РІРѕР·РІСЂР°С‰Р°С‚СЊ РѕС‡РёС‰РµРЅРЅС‹Рµ РґР°РЅРЅС‹Рµ
+    Функция для очистки данных в строковых столбцах
+    от всех имеющихся пробелов
+    должна возвращать очищенные данные
     """
     if pd.isnull(data) or data == 'nan' or data == '':
         return ''
     else:
-        # РџСЂРѕРІРµСЂСЏРµРј, СЏРІР»СЏРµС‚СЃСЏ Р»Рё data СЃС‚СЂРѕРєРѕР№
+        # Проверяем, является ли data строкой
         if isinstance(data, str):
             data = data.replace(' ', '')
         return data
@@ -950,14 +1043,14 @@ def clean_all_spaces(data):
 
 def convert_character_to_space(data):
     """
-    Р¤СѓРЅРєС†РёСЏ РґР»СЏ РѕС‡РёСЃС‚РєРё РґР°РЅРЅС‹С… РІ СЃС‚СЂРѕРєРѕРІС‹С… СЃС‚РѕР»Р±С†Р°С….
-    РџСЂРµРѕР±СЂР°Р·РѕРІС‹РІР°РµС‚ РІСЃРµ СЃРїРµС†СЃРёРјРІРѕР»С‹ РІ РѕРґРёРЅР°СЂРЅС‹Р№ РїСЂРѕР±РµР».
-    Р”РѕР»Р¶РЅР° РІРѕР·РІСЂР°С‰Р°С‚СЊ РѕС‡РёС‰РµРЅРЅС‹Рµ РґР°РЅРЅС‹Рµ.
+    Функция для очистки данных в строковых столбцах.
+    Преобразовывает все спецсимволы в одинарный пробел.
+    Должна возвращать очищенные данные.
     """
     if pd.isnull(data) or data == 'nan' or data == '':
         return ''
     else:
-        # РџСЂРѕРІРµСЂСЏРµРј, СЏРІР»СЏРµС‚СЃСЏ Р»Рё data СЃС‚СЂРѕРєРѕР№
+        # Проверяем, является ли data строкой
         if isinstance(data, str):
             # pattern = r'[^0-9]+'
             pattern = r'[^\w\s]'
@@ -968,16 +1061,20 @@ def convert_character_to_space(data):
 
 def stem_porter(data):
     """
-    Р¤СѓРЅРєС†РёСЏ РґР»СЏ РѕС‡РёСЃС‚РєРё РґР°РЅРЅС‹С… РІ СЃС‚СЂРѕРєРѕРІС‹С… СЃС‚РѕР»Р±С†Р°С…
-    РЎС‚РµРјРј РџРѕСЂС‚РµСЂР°
-    РґРѕР»Р¶РЅР° РІРѕР·РІСЂР°С‰Р°С‚СЊ РѕС‡РёС‰РµРЅРЅС‹Рµ РґР°РЅРЅС‹Рµ
+    Функция для очистки данных в строковых столбцах
+    Стемм Портера
+    должна возвращать очищенные данные
     """
-    # РЎРѕР·РґР°РЅРёРµ СЌРєР·РµРјРїР»СЏСЂР° РєР»Р°СЃСЃР° PorterStemmerRU
+    # Создание экземпляра класса PorterStemmerRU
     stemmer = PorterStemmerRU()
-    # РџСЂРµРґРІР°СЂРёС‚РµР»СЊРЅР°СЏ РїСЂРѕРІРµСЂРєР° С‚РёРїР° Р·РЅР°С‡РµРЅРёСЏ. Р•СЃР»Рё С‡РёСЃР»Рѕ, С‚Рѕ РїСЂРѕРїСѓСЃРєР°РµРј, РёРЅР°С‡Рµ РїСЂРёРјРµРЅСЏРµРј СЃС‚РµРјРј РџРѕСЂС‚РµСЂР°
+    # Предварительная проверка типа значения. Если число, то пропускаем, иначе применяем стемм Портера
     if isinstance(data, float):
         return data
     else:
         return ' '.join([stemmer.stem(word) for word in data.split()])
     # cleaned_data = data.lower()
     # return cleaned_data
+
+
+# if __name__ == '__main__':
+#     app.run(debug=False)
