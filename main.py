@@ -363,9 +363,9 @@ def update():
     rowData = request_data['rowData']
     headers = request_data.get('headers', [])
     oldValue = request_data.get('oldValue')
-    print(oldValue)
-    print(rowData[colIndex])
-    print(newValue)
+    # print(oldValue)
+    # print(rowData[colIndex])
+    # print(newValue)
     # headers = request_data['headers']
 
     # # Проверяем, были ли данные уже обновлены
@@ -470,11 +470,10 @@ def convert_currency():
         rate = rate / 100
     curr_coeff = rate
 
-    print(f'{currency_code}\{default_currency_code}: {rate}')
-
     print(currency_code)
-    print(headers)
-    print(data)
+    print(f'{currency_code}\{default_currency_code}: {rate}')
+    # print(headers)
+    # print(data)
 
     # # Получаем заголовки
     # headers = request.form.get('headers')
@@ -507,7 +506,6 @@ def convert_currency():
         price_per_kg = row['$/КГ']
         updated_row_data = calculations(headers, row, quantity, gross_weight, price_per_kg)
         data_rows.append(updated_row_data)
-
 
     updated_df = pd.DataFrame(data_rows, columns=headers)
 
@@ -610,18 +608,27 @@ def get_cert_info(engine, headers, rowData, naim_value, tm_value):
     if len(matching_records) > 0:
         print('\tНайдены совпадающие записи:')
 
-        i = 1
+        i = 0
+        hscode_list = []
         for record in matching_records:
-            print(f'\t\t{i}. {record}')
+            print(f'\t\t{i + 1}. {record[8]}:')
+            print(f'\t\t{record}')
+            hscode_list.append(record[8])
             i+= 1
+            # hscode_list = [hscode_list]
+        print(f'\t\t{hscode_list}')
 
         # Получаем правильный $/КГ в зависимости от TradeMarks.category
         matching_records = get_coefficient(matching_records)
+
         # Заголовки таблицы в которых необходимо заменить полученные значения
         data_headers = ['НАИМЕНОВАНИЕ1', 'НАИМЕНОВАНИЕ2', 'ИЗГОТОВИТЕЛЬ', 'ТМ', 'КОД ТНВД', '$/КГ', 'КОД №1', 'СЕРТ №1',
                         'НАЧАЛО №1', 'КОНЕЦ №1']
         # Подставляем значения в правильное место наполняемой строки
         upd_rowData = string_collector(rowData, headers, matching_records, data_headers)
+        # upd_rowData = string_collector(upd_rowData, headers, hscode_list, ['СЕРТ №1'])
+        # for i, hscode in enumerate(hscode_list):
+        #     upd_rowData[i][headers.index('СЕРТ №1')] = hscode
         return upd_rowData
     else:
         print('\tНе найдено совпадающих записей!')
@@ -640,6 +647,76 @@ def get_cert_info(engine, headers, rowData, naim_value, tm_value):
     # Закрытие сессии
     session.close()
 
+
+def fill_cert_column(engine, headers, data, naim_value, tm_value):
+    # for row in data:
+    #     hscode_index = headers.index('СЕРТ №1')
+    #     hscode_value = row[hscode_index]
+    #     dropdown_values = [hscode_value] + hscode_list
+    #     row[hscode_index] = dropdown_values
+
+    print(f'\n2. Получаем данные сертификата:')
+    # Применяем функцию convert_character_to_space к значениям naim_value и tm_value
+    cleaned_naim_value = convert_character_to_space(naim_value)
+    cleaned_tm_value = convert_character_to_space(tm_value).lower()
+
+    # Чистка данных с помощью функции stem_porter()
+    cleaned_naim_value = stem_porter(cleaned_naim_value)
+    # stem_tm_value = stem_porter(cleaned_tm_value)
+
+    # Чистка данных с помощью функции clean_all_spaces()
+    cleaned_tm_value = clean_all_spaces(cleaned_tm_value)
+
+    print(f'\tОчищенные данные для поиска:\n'
+    f'\t\t{cleaned_naim_value}\n'
+    f'\t\t{cleaned_tm_value}')
+
+    # Создание сессии
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    # Применяем функцию convert_character_to_space к каждому значению столбца Designations2.designation и TradeMarks.trade_mark
+    cleaned_designation = func.convert_character_to_space(Designations2.designation)
+    cleaned_trademarks = func.convert_character_to_space(TradeMarks.trade_mark)
+    # Применяем функцию stem_porter к каждому значению столбца Designations2.designation и TradeMarks.trade_mark
+    stem_designation = func.stem_porter(cleaned_designation)
+    stem_trademarks = func.stem_porter(cleaned_trademarks)
+    # Применяем функцию clean_all_spaces к каждому значению столбца TradeMarks.trade_mark
+    cleaned_trademarks = func.clean_all_spaces(stem_trademarks)
+
+    # Ну это алхимия)))
+    matching_records = session.query(Designations1.designation,
+                                     Designations2.designation,
+                                     TradeMarks.manufacturer,
+                                     TradeMarks.trade_mark,
+                                     Designations2.hscode,
+                                     Designations2.s_low,
+                                     Designations2.s_high,
+                                     Certificates.code,
+                                     Certificates.cert_name,
+                                     Certificates.start_date,
+                                     Certificates.exp_date,
+                                     TradeMarks.category).join(
+        TradeMarks, Designations2.cert_id == TradeMarks.cert_id).join(
+        Certificates, Designations2.cert_id == Certificates.id).join(
+        Designations1, Designations1.hscode == Designations2.hscode).filter(
+        stem_designation == cleaned_naim_value,
+        cleaned_trademarks == cleaned_tm_value).distinct().all()
+
+    session.close()
+
+    # Вывод найденных значений в консоль
+    if len(matching_records) > 0:
+        print('\tНайдены совпадающие записи:')
+
+    hscode_list = [record[8] for record in matching_records]
+    print(f'\t\t{hscode_list}')
+    return hscode_list
+
+
+def get_hscode_list(rowData, hscode_list):
+    rowData[7] = hscode_list
+    return rowData
 
 
 def get_coefficient(matching_records):
@@ -661,13 +738,15 @@ def sqlite_connect(dbapi_conn, conn_record):
 
 
 def string_collector(rowData, headers, values, col_names):
-    indexes = []
-    for header in col_names:
-        if header in headers:
-            indexes.append(headers.index(header))
+    # indexes = []
+    # for header in col_names:
+    #     if header in headers:
+    #         indexes.append(headers.index(header))
+    indexes = [headers.index(header) for header in col_names if header in headers]
     print(f'\tЗаполнение индексов {indexes} данными {values}')
     # for index in indexes:
     #     rowData[index] = '+'
+    # for index, value in enumerate(values):
     for index, value in zip(indexes, values):
         rowData[index] = value
     return rowData
@@ -821,6 +900,14 @@ def route_by_columns(rowIndex, colIndex, cellData, rowData, headers):
         # upd_rowData[0] = '+' + upd_rowData[0]
         upd_rowData = quantity_update(colIndex, rowData, cellData, headers)
         return upd_rowData
+    if col_name == 'СЕРТ №1':
+        # Получаем значение из НАИМЕНОВАНИЕ2
+        naim_index = get_colIndex_by_colName('НАИМЕНОВАНИЕ2', headers)
+        naim_value = rowData[naim_index]
+        # Получаем значение из ТМ
+        tm_index = get_colIndex_by_colName('ТМ', headers)
+        tm_value = rowData[tm_index]
+        upd_rowData = fill_cert_column(engine, headers, upd_rowData, naim_value, tm_value)
     else:
         pass
 

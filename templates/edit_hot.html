@@ -136,73 +136,13 @@
                 { type: 'text' }, // КОД УП
                 { type: 'text' }, // ДОП КОД УП
                 { type: 'text' }, // КОД №1
-                { type: 'text' }, // СЕРТ №1
-                {
-                    // НАЧАЛО №1
-                    type: 'date',
-                    dateFormat: 'DD.MM.YYYY',
-                    correctFormat: true,
-                    defaultDate: '01.01.1900',
-                    datePickerConfig: {
-                        // First day of the week (0: Sunday, 1: Monday, etc)
-                        firstDay: 1,
-                        showWeekNumber: true,
-                        disableDayFn(date) {
-                            // Disable Sunday and Saturday
-                            return date.getDay() === 0 || date.getDay() === 6;
-                        }
-                    }
-                },
-                {
-                    // КОНЕЦ №1
-                    type: 'date',
-                    dateFormat: 'DD.MM.YYYY',
-                    correctFormat: true,
-                    defaultDate: '01.01.1900',
-                    datePickerConfig: {
-                        // First day of the week (0: Sunday, 1: Monday, etc)
-                        firstDay: 1,
-                        showWeekNumber: true,
-                        disableDayFn(date) {
-                            // Disable Sunday and Saturday
-                            return date.getDay() === 0 || date.getDay() === 6;
-                        }
-                    }
-                },
+                { editor: 'select' }, // СЕРТ №1
+                { type: 'text' }, // НАЧАЛО №1
+                { type: 'text' }, // КОНЕЦ №1
                 { type: 'text' }, // КОД №2
-                { type: 'text' }, // СЕРТ №2
-                {
-                    // НАЧАЛО №2
-                    type: 'date',
-                    dateFormat: 'DD.MM.YYYY',
-                    correctFormat: true,
-                    defaultDate: '01.01.1900',
-                    datePickerConfig: {
-                        // First day of the week (0: Sunday, 1: Monday, etc)
-                        firstDay: 1,
-                        showWeekNumber: true,
-                        disableDayFn(date) {
-                            // Disable Sunday and Saturday
-                            return date.getDay() === 0 || date.getDay() === 6;
-                        }
-                    }
-                },
-                {
-                    // КОНЕЦ №2
-                    type: 'date',
-                    dateFormat: 'DD.MM.YYYY',
-                    correctFormat: true,
-                    defaultDate: '01.01.1900',
-                    datePickerConfig: {
-                        // First day of the week (0: Sunday, 1: Monday, etc)
-                        firstDay: 1,
-                        showWeekNumber: true,
-                        disableDayFn(date) {
-                            // Disable Sunday and Saturday
-                            return date.getDay() === 0 || date.getDay() === 6;
-                        }
-                    }
-                },
+                { editor: 'select' }, // СЕРТ №2
+                { type: 'text' }, // НАЧАЛО №2
+                { type: 'text' }, // КОНЕЦ №2
             ]
         });
 
