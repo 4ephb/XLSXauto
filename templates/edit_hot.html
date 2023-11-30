@@ -88,7 +88,7 @@
             },
             dragToScroll: true,
             manualColumnResize: true,
-            persistentState: true,
+            persistentState: false,
             columns: [
                 { type: 'text' }, // НАИМЕНОВАНИЕ1
                 { type: 'text' }, // НАИМЕНОВАНИЕ2
@@ -254,7 +254,7 @@
                             console.log(rowData)
                             console.log(updatedRowData)
 
-                            hot.render();
+                            //hot.render();
 
                             // Включаем обработчик события 'afterChange' после обновления данных
                             // hot.addHook('afterChange');
