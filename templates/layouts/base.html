@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    {% if title %}<title>XLSXauto - {{ title }}</title>{% else %}<title>XLSXauto</title>{% endif %}
+    <!-- Meta -->
+    <meta charset="utf-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta name="viewport" content="width=device-width, initial-scale=0.6, shrink-to-fit=no"/>
+    <meta name="description" content=""/>
+    <meta name="keywords" content=""/>
+    <meta name="author" content=""/>
+
+    <!-- Favicon icon -->
+    <link rel="shortcut icon" href="/static/assets/ico/favicon.ico" type="image/x-icon">
+    <!-- fontawesome icon -->
+
+    <!-- vendor css -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+    <!-- Specific CSS goes HERE -->
+    {% block stylesheets %}{% endblock stylesheets %}
+
+</head>
+<body class="sb-nav-fixed sb-sidenav-toggled">
+    {% include 'includes/navigation.html' %}
+    <div id="layoutSidenav">
+        <div id="layoutSidenav_nav">
+            {% include 'includes/sidebar.html' %}
+        </div>
+        <div id="layoutSidenav_content">
+            {% block content %}{% endblock content %}
+            {% include 'includes/footer.html' %}
+        </div>
+    </div>
+
+    {% include 'includes/scripts.html' %}
+
+    <!-- Specific Page JS goes HERE  -->
+    {% block javascripts %}{% endblock javascripts %}
+
+</body>
+</html>
