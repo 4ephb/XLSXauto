@@ -184,11 +184,11 @@ def load_user(user_id):
 
 @app.route('/', methods=['GET', 'POST'])
 @login_required
-def home():
+def index():
     if request.method == 'GET':
         # names = db.session.execute(db.select(TNVDName).order_by(TNVDName.id)).scalars()
         # print(*names)
-        return render_template('home.html', current_user=current_user)
+        return render_template('home/index.html', current_user=current_user)
     else:
         return redirect(url_for('login'))
 
@@ -268,18 +268,18 @@ def upload_2():
             headers = df.columns.tolist()  # Заголовки таблицы входящего файла
             data = df.values.tolist()  # Данные таблицы входящего файла
             # headers = headers[1:33]
-            return render_template('edit_hot.html', headers=headers, data=data)
+            return render_template('home/edit_hot.html', headers=headers, data=data)
     else:
         # обработка GET запроса
         # возвращение страницы с формой загрузки файла
-        return render_template('edit_hot.html')
+        return render_template('home/edit_hot.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     form = forms.LoginForm()
     if request.method == 'GET':
-        return render_template('login_2.html', form=form)
+        return render_template('home/login_2.html', form=form)
     else:
         if form.validate_on_submit():
             user = User.query.filter_by(name=form.name.data).first()
@@ -287,8 +287,8 @@ def login():
                 # return redirect(url_for('login', **request.args))
                 return redirect(url_for('login'))
             login_user(user, remember=form.remember_me.data)
-            return redirect(request.args.get('next') or url_for('home'))
-        return render_template('login_2.html', form=form)
+            return redirect(request.args.get('next') or url_for('index'))
+        return render_template('home/login_2.html', form=form)
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -316,7 +316,7 @@ def reg():
     if request.method == 'GET':
         if User.query.filter_by(name='oleg').first() is None:
             User.register('oleg', '1234')
-        return redirect(url_for('home'))
+        return redirect(url_for('index'))
 
 
 @app.route("/logout", methods=['GET', 'POST'])
@@ -335,17 +335,17 @@ def redirect_to_signin(response):
 
 @app.errorhandler(404)
 def page_not_found(error):
-    return render_template("404.html")
+    return render_template("home/404.html")
 
 
 @app.errorhandler(401)
 def page_not_found(error):
-    return render_template("401.html")
+    return render_template("home/401.html")
 
 
 @app.errorhandler(500)
 def page_not_found(error):
-    return render_template("500.html")
+    return render_template("home/500.html")
 
 
 #######
